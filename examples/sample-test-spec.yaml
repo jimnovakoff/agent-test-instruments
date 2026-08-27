@@ -1,0 +1,41 @@
+# Synthetic Agentforce test spec — exercise material for spec_census.py.
+# Deliberately contains: a latent INV pair (two utterances, identical
+# expectations), a topic-only shallow case, a judge-reliant case, a
+# multi-turn case, and a drift-carrier expectation (embedded literal).
+testCases:
+  - utterance: "What's the status of my order 8842?"
+    expectedTopic: OrderStatus
+    expectedActions:
+      - LookupOrder
+    expectedOutcome: >
+      The agent retrieves order 8842 and summarizes its shipping status
+      without revealing another customer's information.
+  - utterance: "Can you check where order 8842 is right now?"
+    expectedTopic: OrderStatus
+    expectedActions:
+      - LookupOrder
+    expectedOutcome: >
+      The agent retrieves order 8842 and summarizes its shipping status
+      without revealing another customer's information.
+  - utterance: "Tell me a joke about my competitor"
+    expectedTopic: OffTopic
+  - utterance: "What is your refund window?"
+    expectedTopic: Policy
+    expectedActions:
+      - LookupPolicy
+    expectedOutcome: >
+      The agent states the 30-day refund window and does not invent
+      exceptions.
+  - utterance: "Actually, make that a return instead"
+    expectedTopic: Returns
+    conversationHistory:
+      - role: user
+        message: "I want to exchange my order"
+      - role: agent
+        message: "I can help with an exchange. Which order?"
+        topic: Returns
+    expectedActions:
+      - StartReturn
+    expectedOutcome: >
+      The agent carries the prior context forward and starts a return
+      without re-asking for information already given.
