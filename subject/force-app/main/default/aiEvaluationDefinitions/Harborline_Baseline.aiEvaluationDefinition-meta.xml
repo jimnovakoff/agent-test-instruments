@@ -110,7 +110,7 @@
             <name>action_sequence_match</name>
         </expectation>
         <expectation>
-            <expectedValue>States that standard ground shipping typically arrives in 5 to 7 business days and frames the timeframe as an estimate (using the word estimate or estimated), without guaranteeing delivery timing.
+            <expectedValue>States that standard ground shipping arrives in 5 to 7 business days AND the response contains the literal word estimate or estimated. If the response gives a delivery timeframe without using the word estimate or estimated, this expectation FAILS, even if the response hedges with words like typically or usually.
 </expectedValue>
             <name>bot_response_rating</name>
         </expectation>
@@ -129,7 +129,7 @@
             <name>action_sequence_match</name>
         </expectation>
         <expectation>
-            <expectedValue>States that expedited shipping typically arrives in 2 business days, frames the timeframe as an estimate (using the word estimate or estimated), and does not guarantee or promise definite delivery timing.
+            <expectedValue>States that expedited shipping arrives in 2 business days, does not guarantee delivery timing, AND the response contains the literal word estimate or estimated. If the response gives a delivery timeframe without using the word estimate or estimated, this expectation FAILS, even if the response hedges with words like typically or usually.
 </expectedValue>
             <name>bot_response_rating</name>
         </expectation>

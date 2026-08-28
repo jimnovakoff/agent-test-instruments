@@ -54,6 +54,56 @@ containing `sortOrder`. A project scaffolded at an older API version cannot
 redeploy metadata the CLI just handed it. Pin `sourceApiVersion` to the
 version the org speaks (67.0 here).
 
+## F-5 — plugin deploys do not reach the running agent; the planner bundle is the carrier
+
+Deploying a mutated `GenAiPlugin` alone — even bracketed by
+deactivate/activate — changes nothing at runtime: the agent kept answering
+from the old instructions. Proven with a canary (standing shipping cost
+6.95 → 9.95; the agent still said $6.95 across a bounce). Instruction changes
+reach the runtime only via `GenAiPlannerBundle` deploy, which in turn is
+refused while the agent is active ("Cannot update record as Agent is
+Active"). **The mutation vehicle is: deactivate → deploy plugins + planner
+bundle → activate.** Without the canary, every instruction mutant reads as
+survived when it was never applied — the §5.1 ineffective-mutant trap in its
+hosted form, and the reason the harness's effectiveness check ports as a
+mandatory canary mutation.
+
+## F-6 — the first effective mutant survived: the LLM judge, not the clause, was the weak layer
+
+With AF-1 (delete G3) genuinely live — canary failing, estimate language
+visibly gone from responses ("typically takes 5 to 7 business days", no
+hedge) — the judge still PASSED both guarding cases, against an
+`expectedOutcome` that explicitly required the word estimate/estimated.
+Stability-doubled: consistent across two runs. The behavioral change was
+plainly visible in the raw responses and invisible in the verdicts. Hosted
+analog of the tautological test: the case runs, names the behavior, and
+cannot fail for it.
+
+## F-7 — Testing Center's custom string evaluation errors on its own generated JSONPath
+
+The deterministic repair path — `customEvaluations` with `string_comparison`
+contains on `$.generatedData.outcome` — returns status ERROR: the server
+rewrites the reference to
+`$.outputs[?(@.type == 'general.echo')].payload.planner_response.lastExecution.outcome`
+and its own JSONPath parser then rejects the filter expression it generated.
+The platform's only deterministic assertion mechanism over response text was
+unusable as documented.
+
+## F-8 — a binary judge rubric caught the mutant; arc closed
+
+Rewriting the two G3 `expectedOutcome` rubrics to make the lexical criterion
+the explicit pass/fail line ("...contains the literal word estimate or
+estimated. If not, this expectation FAILS, even if the response hedges with
+typically or usually") changed the outcome: baseline still 10/10 green;
+AF-1 re-applied → **exactly cases 6 and 7 FAIL, nothing else** —
+stability-doubled, identical failing set both runs; clause restored →
+10/10 green. The complete measured arc: mutant survived (ineffective) →
+vehicle fixed → survived again (lenient judge) → deterministic assertion
+broken (platform) → rubric sharpened → **CAUGHT**. Instruction mutation on a
+hosted agent platform is demonstrated, and what it found on first contact
+was a weak assertion layer — the same species the paper's deterministic
+systems yielded.
+
 ## Baseline record
 
 - Agent: `Harborline_Agent` (3 topics, no actions, self-contained standing
