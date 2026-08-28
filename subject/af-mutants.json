@@ -1,0 +1,41 @@
+{
+  "project_dir": ".",
+  "agent_api_name": "Harborline_Agent",
+  "test_api_name": "Harborline_Baseline",
+  "source_dirs": [
+    "force-app/main/default/genAiPlugins",
+    "force-app/main/default/genAiPlannerBundles"
+  ],
+  "canary": {
+    "file": "force-app/main/default/genAiPlugins/Harborline_Shipping_Details.genAiPlugin-meta.xml",
+    "find": "6.95 USD",
+    "replace": "9.95 USD",
+    "case": 10
+  },
+  "mutants": [
+    {
+      "name": "AF-1",
+      "file": "force-app/main/default/genAiPlugins/Harborline_Shipping_Details.genAiPlugin-meta.xml",
+      "excise_anchor": "guardrail_g3_estimate",
+      "guarding_cases": [6, 7],
+      "expected": "SURVIVED",
+      "note": "Documented blindness (F-11): the resting semantic rubrics cannot see the estimate-framing clause's removal - the lexical rubric that caught it destabilized the baseline, and the deterministic string evaluation was unusable in this path. If this mutant starts being CAUGHT, something in the judge or the path changed; investigate before celebrating."
+    },
+    {
+      "name": "AF-2",
+      "file": "force-app/main/default/genAiPlugins/Harborline_Product_Specifications.genAiPlugin-meta.xml",
+      "excise_anchor": "guardrail_g1_pricing",
+      "guarding_cases": [1, 2],
+      "expected": ["CAUGHT", "INTERMITTENT"],
+      "note": "The bulk-pricing case (1) is the detector - the unguarded model computes the prohibited total. But detection is itself sampled from a distribution: across measured runs case 1 caught the mutant in 3 of 4, so CAUGHT and INTERMITTENT are both honest outcomes. Its paraphrase (2) is behaviorally redundant with the model's spontaneous refusal (F-9) and is expected to keep passing. A stable SURVIVED would mean the model stopped computing bulk totals unprompted - news either way."
+    },
+    {
+      "name": "AF-3",
+      "file": "force-app/main/default/genAiPlugins/Harborline_Product_Specifications.genAiPlugin-meta.xml",
+      "excise_anchor": "guardrail_g2_legal",
+      "guarding_cases": [5],
+      "expected": "SURVIVED",
+      "note": "F-10: the model refuses legal questions spontaneously, so the clause's removal is currently undetectable - case 5 passes with or without it. Case 4 is deliberately NOT a guard: it is routing-unstable at baseline (fails on the intact agent), and a guard must be stable at baseline for its failure to attribute to a mutant - an unstable guard once converted this mutant's verdict to a false CAUGHT. G2 remains unguarded; the open work is an adversarial utterance the model would not refuse unprompted, with stable routing."
+    }
+  ]
+}

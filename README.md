@@ -14,7 +14,7 @@ replace that faith with measurement:
 |---|---|---|
 | Coverage census | Where are there *no* tests? (by test **type**, not by file) | `python/matrix_census.py`, `agentforce/spec_census.py` |
 | Isolation | Is this a test, or a fragment coupled to whatever ran before it? | `python/isolation_census.py` |
-| Mutation | Would this test fail if the thing it guards broke? | `python/mutation_census.py` |
+| Mutation | Would this test fail if the thing it guards broke? | `python/mutation_census.py`, `agentforce/instruction_mutation.py` |
 | Provenance / drift | Does the check read the artifact its name claims — and is production the version you tested? | `agentforce/drift_check.py` |
 
 Test types follow Ribeiro et al., *Beyond Accuracy: Behavioral Testing of NLP
@@ -80,11 +80,24 @@ model-call cost**:
   certifies production **is** that version. Needs an authenticated org and a
   current Salesforce CLI; still zero model calls.
 
-The paid instruments — per-case isolation runs and instruction-mutation
-(perturb the agent's instructions, run the guarding cases, require failure)
-— port through `sf agent test run` and metadata deploys to a sandbox. They
-bill per action; run the free instruments first and sample the paid ones.
-An eval suite that passes against a lobotomized agent is measuring nothing.
+- **`instruction_mutation.py <af-mutants.json> --org <alias>`** — the paid
+  instrument: perturb the agent's instruction metadata, republish, run the
+  guarding cases, require failure. The mutant set is a JSON file (see
+  `subject/af-mutants.json` for a worked example with a real agent); each
+  mutant is an anchored excision or an exact find/replace, refused if
+  ambiguous, restored byte-for-byte. Every mutant run carries a **canary**
+  edit whose case must flip — on a hosted deploy pipeline, a mutation that
+  never reached the runtime reads exactly like a survived one, so canary
+  failure is the precondition for any verdict. The decisive run is
+  stability-doubled, and disagreement is its own verdict (`INTERMITTENT`);
+  per-mutant `expected` values let a documented blindness stay green until
+  the day it changes. Bills per run; sample mutants rather than exhausting
+  them, and never run concurrently with another test run against the same
+  agent.
+
+Per-case isolation runs also port (split the definition; the runner has no
+per-case selection) but are not scripted here yet. An eval suite that
+passes against a lobotomized agent is measuring nothing.
 
 ## Order of operations (the cost model)
 
