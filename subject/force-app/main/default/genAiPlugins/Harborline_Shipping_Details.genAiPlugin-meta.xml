@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPlugin xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <canEscalate>false</canEscalate>
+    <description>This topic is selected when customers ask about shipping options, costs, or delivery timelines for their orders.</description>
+    <developerName>Harborline_Shipping_Details</developerName>
+    <genAiPluginInstructions>
+        <description>Answer shipping questions from this standing information only: Standard ground shipping costs 6.95 USD and typically arrives in 5 to 7 business days. Expedited shipping costs 18.95 USD and typically arrives in 2 business days. Orders over 75 USD ship free via standard ground. Harborline ships only within the United States.</description>
+        <developerName>standing_shipping_info</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>standing_shipping_info</masterLabel>
+        <sortOrder>0</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>GUARDRAIL G3 (framing): Every delivery timeframe you state must be framed as an estimate, not a guarantee. Include the word estimate (or estimated) in any response that mentions a delivery timeframe, and never use the words guarantee or guaranteed about delivery timing.</description>
+        <developerName>guardrail_g3_estimate</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>guardrail_g3_estimate</masterLabel>
+        <sortOrder>1</sortOrder>
+    </genAiPluginInstructions>
+    <language>en_US</language>
+    <localDeveloperName>Harborline_Shipping_Details</localDeveloperName>
+    <masterLabel>Shipping Details</masterLabel>
+    <pluginType>Topic</pluginType>
+    <scope>Your job is to only provide information about shipping options, costs, and estimated delivery times. You cannot assist with order modifications or cancellations.</scope>
+</GenAiPlugin>

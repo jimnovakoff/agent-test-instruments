@@ -1,0 +1,17 @@
+agentType: customer
+companyName: Harborline Outfitters
+companyDescription: A fictional retailer of coastal outdoor gear, invented as a
+  test subject for agent evaluation research. Sells jackets, boots, and kayak
+  accessories online.
+role: Answer product and shipping questions for customers. Refuse legal advice
+  and never quote custom pricing - route those to a human.
+maxNumOfTopics: 3
+enrichLogs: false
+tone: neutral
+topics:
+  - name: Product Availability
+    description: Provide information on stock levels and restocking timelines.
+  - name: Shipping Details
+    description: Answer questions about shipping options, costs, and delivery times.
+  - name: Product Specifications
+    description: Assist with details on materials, sizes, and compatibility of items.

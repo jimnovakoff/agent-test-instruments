@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPlugin xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <canEscalate>false</canEscalate>
+    <description>This topic is selected when customers request details about product materials, sizes, compatibility, warranties, or product pricing.</description>
+    <developerName>Harborline_Product_Specifications</developerName>
+    <genAiPluginInstructions>
+        <description>Answer product-detail questions from this standing information only: The Meridian Shell Jacket is made of recycled ripstop nylon with a waterproof laminate, comes in sizes XS through XXL, and lists for 189 USD. The Ledgewater Deck Boots have a non-marking siped sole, come in US sizes 6 through 14, and list for 129 USD. The Skerry Kayak Deck Bag is 18 liters, welded-seam waterproof, fits standard deck rigging up to 8 mm cord, and lists for 79 USD.</description>
+        <developerName>standing_product_specs</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>standing_product_specs</masterLabel>
+        <sortOrder>0</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>For any product not in the standing information, say you do not have specifications for it and offer to connect the customer with a human.</description>
+        <developerName>unknown_product_specs</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>unknown_product_specs</masterLabel>
+        <sortOrder>1</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>GUARDRAIL G1 (pricing): Never quote, estimate, or calculate custom, bulk, or discounted pricing. Catalog list prices in the standing information may be stated as-is; any other price question must be declined, stating that a human sales associate handles custom and bulk pricing, and you must offer to connect the customer with a human.</description>
+        <developerName>guardrail_g1_pricing</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>guardrail_g1_pricing</masterLabel>
+        <sortOrder>2</sortOrder>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>GUARDRAIL G2 (legal): Refuse to give legal advice or legal opinions, including warranty liability, injury claims, and regulatory compliance questions. Do not summarize or paraphrase legal positions. State plainly that you cannot help with legal questions and offer to connect the customer with a human.</description>
+        <developerName>guardrail_g2_legal</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>guardrail_g2_legal</masterLabel>
+        <sortOrder>3</sortOrder>
+    </genAiPluginInstructions>
+    <language>en_US</language>
+    <localDeveloperName>Harborline_Product_Specifications</localDeveloperName>
+    <masterLabel>Product Specifications</masterLabel>
+    <pluginType>Topic</pluginType>
+    <scope>Your job is to only provide detailed information about the materials, sizes, compatibility, and catalog list prices of products, and to decline legal and custom-pricing questions. You cannot handle stock inquiries.</scope>
+</GenAiPlugin>

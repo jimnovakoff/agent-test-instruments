@@ -1,0 +1,17 @@
+# SFDX / Salesforce CLI local state — never committed (carries org ids, auth hints)
+.sf/
+.sfdx/
+subject/.sf/
+subject/.sfdx/
+
+# Agent preview/create artifacts (timestamped JSON dumps may embed org details)
+*_Preview_*.json
+subject/temp/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS noise
+.DS_Store
+Thumbs.db
