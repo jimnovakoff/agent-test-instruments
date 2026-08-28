@@ -13,9 +13,12 @@ fallback hosts `test.api.salesforce.com` / `dev.api.salesforce.com` publicly
 resolve to internal-only ingresses (`ingress-internal.*.aws.sfdc.cl`) that
 time out. The fallback loop throws on any non-404, so the chain dies at
 `test.` — a fallback path that cannot succeed from outside Salesforce's
-network, surfaced as a generic fetch error. Reported upstream. Workaround:
-the classic `sf agent create` path. *(The operational cousin of a dead test:
-looks like resilience, never could have worked.)*
+network, surfaced as a generic fetch error. The initial 404 may simply be
+an entitlement boundary for this org type — that is the vendor's call to
+make; the part that stands regardless is the client-side chain and its raw
+error. Reported to Salesforce. Workaround: the classic `sf agent create`
+path. *(The operational cousin of a dead test: looks like resilience, never
+could have worked.)*
 
 ## F-2 — Testing Center reports the routed topic as a truncated name
 
@@ -26,9 +29,11 @@ truncated at the planner-id segment somewhere in the results pipeline. Every
 topic assertion fails no matter what you expect. Built-in topics
 (`Off_Topic`), which carry no prefix, report fine. Workaround that doubles
 as better hygiene: deploy topics under clean developerNames (renamed to
-`Harborline_*`); full names then round-trip correctly. Provenance lesson:
+`Harborline_*`); full names then round-trip correctly. Reported to
+Salesforce. Provenance lesson:
 the assertion was comparing against a *derivative* of the routed topic that
-the reporting layer had mangled.
+the reporting layer had mangled — verify what the results pipeline actually
+reports before trusting any assertion built on it.
 
 ## F-3 — a topic-scoped guardrail only guards what routes to its topic
 
@@ -62,11 +67,17 @@ from the old instructions. Proven with a canary (standing shipping cost
 6.95 → 9.95; the agent still said $6.95 across a bounce). Instruction changes
 reach the runtime only via `GenAiPlannerBundle` deploy, which in turn is
 refused while the agent is active ("Cannot update record as Agent is
-Active"). **The mutation vehicle is: deactivate → deploy plugins + planner
-bundle → activate.** Without the canary, every instruction mutant reads as
-survived when it was never applied — the §5.1 ineffective-mutant trap in its
-hosted form, and the reason the harness's effectiveness check ports as a
-mandatory canary mutation.
+Active"). This is plausibly the platform's versioning model working as
+designed — an active agent version behaving as an immutable snapshot — so
+we treat it as an unsignaled contract rather than a defect; the trap is
+that nothing at deploy time signals it, and the only way to learn it is to
+notice that a succeeded deploy changed nothing. Reported to Salesforce as a
+DX gap (a warning or doc pointer at deploy time). **The mutation vehicle
+is: deactivate → deploy plugins + planner bundle → activate.** Without the
+canary, every instruction mutant reads as survived when it was never
+applied — the §5.1 ineffective-mutant trap in its hosted form, and the
+reason the harness's effectiveness check ports as a mandatory canary
+mutation, whether the silence is by design or by omission.
 
 ## F-6 — the first effective mutant survived: the LLM judge, not the clause, was the weak layer
 
@@ -86,8 +97,12 @@ contains on `$.generatedData.outcome` — returns status ERROR: the server
 rewrites the reference to
 `$.outputs[?(@.type == 'general.echo')].payload.planner_response.lastExecution.outcome`
 and its own JSONPath parser then rejects the filter expression it generated.
-The platform's only deterministic assertion mechanism over response text was
-unusable as documented.
+The deterministic assertion mechanism over response text in this evaluation
+path was unusable as documented (the documented reference form is the one
+tried). Reported to Salesforce. Scope note: this is the legacy
+Testing Center path; the newer Agentforce Studio runner
+(`agent test run-eval`) carries its own scorer catalog and was not
+evaluated — it may fare differently.
 
 ## F-8 — a binary judge rubric caught the mutant; arc closed
 
@@ -99,7 +114,7 @@ AF-1 re-applied → **exactly cases 6 and 7 FAIL, nothing else** —
 stability-doubled, identical failing set both runs; clause restored →
 10/10 green. The complete measured arc: mutant survived (ineffective) →
 vehicle fixed → survived again (lenient judge) → deterministic assertion
-broken (platform) → rubric sharpened → **CAUGHT**. Instruction mutation on a
+unusable in this path → rubric sharpened → **CAUGHT**. Instruction mutation on a
 hosted agent platform is demonstrated, and what it found on first contact
 was a weak assertion layer — the same species the paper's deterministic
 systems yielded.
@@ -128,19 +143,27 @@ stabilization — converting a sometimes-refusal into an always-refusal — and
 detecting its removal needs an adversarial utterance the model would not
 refuse on its own, with stable routing. Open work.
 
-## F-11 — the judge hallucinated about the text it graded; lexical criteria have no reliable carrier
+## F-11 — the verdict layer failed provenance; lexical criteria had no reliable carrier in this path
 
 The binary rubric that caught AF-1 destabilized the restored baseline: the
-same case failed two consecutive green-state runs while the response
-literally contained the required word ("arrives in an **estimated** 5 to 7
-business days"). The judge's own explanation asserts the response "uses the
-word 'typically' instead of the required 'estimated'" — a false statement
-about the text under evaluation. Combined with F-6 (judge passes responses
-missing the word) and F-7 (the deterministic string evaluation errors), the
-platform currently has no reliable mechanism, judge or deterministic, for a
-lexical assertion. Resting state: G3 rubrics reverted to semantic form
-(stable baseline, documented blindness to AF-1 until the platform's
-string_comparison defect is fixed — issue filed).
+same case failed two consecutive green-state runs while the response shown
+in the result record literally contained the required word ("arrives in an
+**estimated** 5 to 7 business days"). The judge's own explanation asserts
+the response "uses the word 'typically' instead of the required
+'estimated'" — a false statement about the displayed text. Whether the
+judge hallucinated about its input or the results pipeline fed it something
+other than the response it displays alongside the verdict cannot be
+distinguished from outside — F-2 proves this pipeline can mangle fields
+between runtime and report — and either reading is a provenance failure of
+the verdict layer: a verdict decoupled from its visible subject. The judge
+is also an unversioned dependency (model and version not exposed), so these
+are dated observations of a moving target. Combined with F-6 (judge passes
+responses missing the word) and F-7 (the deterministic string evaluation
+was unusable), the Testing Center evaluation path offered no reliable
+mechanism, judge or deterministic, for a lexical assertion at the time of
+measurement. Resting state: G3 rubrics reverted to semantic form (stable
+baseline, with the resulting blindness to AF-1 documented; reported to
+Salesforce with the F-7 reproduction).
 
 ## Baseline record
 
