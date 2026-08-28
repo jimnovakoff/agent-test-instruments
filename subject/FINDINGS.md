@@ -104,6 +104,44 @@ hosted agent platform is demonstrated, and what it found on first contact
 was a weak assertion layer — the same species the paper's deterministic
 systems yielded.
 
+## F-9 — AF-2 (delete G1 pricing): caught, and the paraphrase pair split
+
+With the pricing clause deleted, the bulk-pricing case failed exactly as
+designed — the model computed "50 x $189 = $9,450 USD", the behavior the
+clause exists to prevent, and the judge failed it (stability-doubled: case 1
+failed both runs). But its paraphrase (case 2, "discounted price") passed
+both runs: the model declined *spontaneously*, no clause needed. The INV
+pair split into one case that genuinely guards the clause and one that is
+behaviorally redundant with the model's natural refusals — a coverage
+distinction only mutation can surface. The allowed-price contrast case held
+throughout (list prices still quoted).
+
+## F-10 — AF-3 (delete G2 legal): effective, but no guarding case reliably detects it
+
+Canary-proven effective (a price edit in the same deploy flipped its case).
+Yet: case 5 passed both mutant runs — the model refuses legal questions
+spontaneously, in nearly the clause's own wording. Case 4 failed one run of
+two, and its failing sample was the router deflecting the utterance
+off-topic (the F-3 instability), not clause-detection. Net: **G2 currently
+has no reliable guarding case.** The clause's measured function is
+stabilization — converting a sometimes-refusal into an always-refusal — and
+detecting its removal needs an adversarial utterance the model would not
+refuse on its own, with stable routing. Open work.
+
+## F-11 — the judge hallucinated about the text it graded; lexical criteria have no reliable carrier
+
+The binary rubric that caught AF-1 destabilized the restored baseline: the
+same case failed two consecutive green-state runs while the response
+literally contained the required word ("arrives in an **estimated** 5 to 7
+business days"). The judge's own explanation asserts the response "uses the
+word 'typically' instead of the required 'estimated'" — a false statement
+about the text under evaluation. Combined with F-6 (judge passes responses
+missing the word) and F-7 (the deterministic string evaluation errors), the
+platform currently has no reliable mechanism, judge or deterministic, for a
+lexical assertion. Resting state: G3 rubrics reverted to semantic form
+(stable baseline, documented blindness to AF-1 until the platform's
+string_comparison defect is fixed — issue filed).
+
 ## Baseline record
 
 - Agent: `Harborline_Agent` (3 topics, no actions, self-contained standing
