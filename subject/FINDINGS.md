@@ -165,6 +165,31 @@ measurement. Resting state: G3 rubrics reverted to semantic form (stable
 baseline, with the resulting blindness to AF-1 documented; reported to
 Salesforce with the F-7 reproduction).
 
+## F-12 — the Studio runner has the deterministic carrier the legacy path lacked
+
+The scoping question left open by F-7/F-11 is now measured. The Agentforce
+Studio runner (`sf agent test run-eval`, beta) executes the same legacy spec
+via a translation layer, and the same `string_comparison` custom evaluation
+that errored on the legacy path arrives there as a working
+`evaluator.string_assertion`: it evaluated the true response text (no
+JSONPath mangling), passed the intact baseline, and **caught the AF-1
+framing-clause mutant in three of three runs via case 6** — while the LLM
+judge stayed blind to the same removal in the same runs, reconfirming F-6
+on a second runner. The lexical-carrier gap is a property of the legacy
+Testing Center evaluation path, not of the platform: the deterministic
+carrier exists one runner over. Nuances from the same probe: detection
+through case 7 remained sampled (the unguarded model sometimes says
+"estimate" spontaneously — 2 of 3 runs caught); topic names round-trip
+untruncated on this API (the F-2 truncation is legacy-path-specific);
+run-eval needs no metadata deploy (it runs local YAML against the deployed
+agent, resolving by subjectName); the native NGT scorer catalog still has
+no deterministic response-text scorer — the working assertion arrives only
+via the legacy-spec translation layer; and one borderline utterance (the
+unknown-product case) routed differently across agent activations while
+staying consistent within each — topic assertions on borderline utterances
+carry activation-level instability, an F-3 refinement. Probe spec:
+`specs/Harborline_Agent-studioProbe.yaml`.
+
 ## Baseline record
 
 - Agent: `Harborline_Agent` (3 topics, no actions, self-contained standing
