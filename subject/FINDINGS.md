@@ -190,6 +190,37 @@ staying consistent within each — topic assertions on borderline utterances
 carry activation-level instability, an F-3 refinement. Probe spec:
 `specs/Harborline_Agent-studioProbe.yaml`.
 
+## F-13 — per-case isolation measured on the Studio runner: 0/10 coupled
+
+Because `run-eval` executes local YAML with no metadata deploy, per-case
+isolation reduces to splitting the spec into one-case files and running
+each in a fresh invocation. All ten solo verdicts matched a same-activation
+batch reference exactly — including the borderline routing case failing
+identically both ways — so no case's verdict depends on the cases that ran
+before it. Each case appears to get a fresh session; on this runner, the
+suite's case count equals its count of independent evidence, the opposite
+of what §4-style isolation found in the deterministic suites (20 of 105
+coupled). Caveat stated plainly: with one probabilistic sample per cell,
+identical verdicts are consistent with isolation rather than proof of it.
+
+## F-14 — the judge calibrated against a deterministic oracle: errors in both directions
+
+With `string_assertion` and the judge grading the same explicitly binary
+lexical criterion on identical responses, the oracle becomes ground truth
+and the judge becomes measurable — the §8.1 instrument-the-reviewer method
+pointed at the platform's own reviewer. Over ten paired verdicts spanning
+intact, mutated, and restored states: oracle correct 10/10; judge agreement
+8/10. The two errors went in opposite directions: one false positive (the
+judge failed a compliant response that literally contained "estimated" —
+the F-11 species, reproduced on the second runner with the graded text in
+the same record) and one false negative (a violation passed). The
+sharpened lexical rubric did catch violations the semantic rubric was
+blind to (2 of 3), at the price of that false positive — the F-8/F-11
+trade-off, now as rates instead of anecdotes. Small n, stated as such; the
+shape, not the decimals, is the finding: given a binary criterion and the
+answer text, the judge still disagrees with ground truth about one time in
+five. Mini-spec: `specs/Harborline_JudgeCal-spec.yaml`.
+
 ## Baseline record
 
 - Agent: `Harborline_Agent` (3 topics, no actions, self-contained standing
