@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-mutation_census.py — break the behaviour, prove a test notices, restore.
+mutation_census.py — break the behavior, prove a test notices, restore.
 
 A green suite reports which tests exist and whether they pass — never whether
 they would fail if the system broke. On deterministic code (SQL, XML, exports)
