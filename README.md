@@ -25,7 +25,7 @@ asserted against the single source of truth.
 The full experience report behind these scripts — fifteen defects found in one
 session against a mature 480-test suite (six of them in the tests), replicated
 across a second codebase and then a probabilistic third — is
-**"Green Is Not Evidence"** (CMMCSecureCloud). The scripts are the recipes;
+**["Green Is Not Evidence"](paper/green-is-not-evidence.md)** (CMMCSecureCloud). The scripts are the recipes;
 the paper is the yield.
 
 ## The generic Python instruments (`python/`)
