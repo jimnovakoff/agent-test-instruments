@@ -1,0 +1,6 @@
+{
+  "extra_checks": [
+    {"name": "compile every script", "run": "python -m compileall -q python agentforce"},
+    {"name": "spec census smoke run (free, no org)", "run": "python agentforce/spec_census.py examples/sample-test-spec.yaml > /dev/null && python agentforce/spec_census.py subject/specs/Harborline_Agent-testSpec.yaml > /dev/null"}
+  ]
+}
