@@ -76,6 +76,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
@@ -90,11 +91,22 @@ def _env():
 
 def _run_pytest(args):
     """Exit code of a pytest run. 0 = all passed (see isolation_census.py on
-    why the exit code, never a substring scan of stdout)."""
-    proc = subprocess.run(
-        [sys.executable, '-m', 'pytest', *args, '-q', '-p', 'no:cacheprovider'],
-        capture_output=True, text=True, cwd=str(REPO), env=_env(),
-    )
+    why the exit code, never a substring scan of stdout).
+
+    Each run gets an empty bytecode cache. A .pyc is trusted when the source's
+    size and whole-second mtime match its header, and a same-length mutant
+    ('0.8' -> '0.0', two swapped names) written or restored inside the same
+    second as the last compile matches both: the run then executes the stale
+    bytecode instead of the file on disk. That read as INEFFECTIVE when the
+    mutant was the stale side, and as a later mutant's baseline red when the
+    restore was."""
+    with tempfile.TemporaryDirectory(prefix='mutation-pycache-') as cache:
+        env = _env()
+        env['PYTHONPYCACHEPREFIX'] = cache
+        proc = subprocess.run(
+            [sys.executable, '-m', 'pytest', *args, '-q', '-p', 'no:cacheprovider'],
+            capture_output=True, text=True, cwd=str(REPO), env=env,
+        )
     return proc.returncode
 
 
