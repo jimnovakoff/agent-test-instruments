@@ -5,7 +5,7 @@ four instruments that found it**
 
 *Subject systems: a CMMC Level 2 assessment agent pair and their guardrailed chatbot*
 
-*James Novakoff — CMMCSecureCloud LLC — v2.1, 2026-08-29*
+*James Novakoff — CMMCSecureCloud LLC — v2.2, 2026-11-16*
 
 ---
 
@@ -369,6 +369,20 @@ HEAD`. The rule that follows: while a census runs, treat every read of a
 mutated file as suspect, and verify any finding against the repository's
 object store before acting on it.
 
+A third surfaced eleven weeks later, and it was in the harness's own
+runtime. Python trusts a cached `.pyc` when the source file's size and
+whole-second modification time match the cache header. A same-length
+mutant — `0.8` rewritten as `0.0`, two equal-length names swapped — written
+or restored inside the same second as the last compile therefore runs the
+*previous* bytecode. When the mutant is the stale side, a real mutant reads
+INEFFECTIVE; one alternated CAUGHT and INEFFECTIVE across repeat runs. When
+the restore is the stale side, the mutation outlives its own restore and
+the next mutant's guarding tests fail before anything is mutated — two
+"baseline red" verdicts on tests that pass alone. The fix is small:
+every pytest run gets an empty bytecode cache. The lesson is the §9 one,
+pointed back at the original harness: mutation tooling is code, and it
+earns trust the same way. Only repeat runs exposed this one.
+
 ---
 
 ## 6. Instrument 4 — provenance
@@ -477,7 +491,7 @@ The before-and-after, in the estimator's own units:
 | Census — INV | 33 | 38 |
 | Census — DIR | 2 | 29 |
 | Census — DRIFT | 5 | 34 |
-| Order-coupled tests | 20 (in one 105-test file) | 0, ratcheted in CI |
+| Order-coupled tests | 20 (in one 105-test file) | 0, ratcheted (`--max 0`), run on demand |
 | Committed mutants, verified catching | 0 | 24 |
 | Tests known to assert against a derivative of their subject | 5 (found by provenance) | 0 known |
 | Sibling system: tests / mutants | 207 / 0 | 254 / 19 |
@@ -653,6 +667,15 @@ bound, not estimate" predicts: probed links stay quiet, unprobed links keep
 paying out. The 88 stands for what has been instrumented; it says nothing
 about what has not.
 
+A later point fits the same rule from a different direction. The
+assessment-objective seed — the 320 NIST SP 800-171A determination
+statements — had been recorded as verified against the NIST text. A fresh
+extraction, compared row by row, found 13 objectives across 9 controls
+paraphrased, two of them substantively (one dropped "response actions to";
+another said "periodic scans of organizational systems" where NIST says
+"malicious code scans"). "Verified" was a label on an unprobed link, and
+it carried the same optimism as an unprobed confidence figure.
+
 One later first-touch probe deserves recording precisely because it found
 nothing: the workbook's remaining export domains, probed for the first
 time, agreed with their sources. That is the record's first quiet
@@ -686,6 +709,9 @@ On judgment-class error the tool adds nothing directly; what it changes is
 the judge's conditions — no zero-cost claim without a recorded reason, no
 Met without its class of evidence, no affirmation over an incomplete
 assessment, every scanner disagreement surfaced instead of buried.
+That last condition has since become structural rather than procedural:
+the scan now writes only its own columns, so it can report a disagreement
+to the assessor but cannot apply one.
 
 The remaining unmeasured link is the review itself, and its failure mode is
 automation complacency: the reviewer who stops overriding. A review that
@@ -880,8 +906,8 @@ they do, any figure for the composed system is an upper bound.
 **Instrument coverage is itself uneven.** Isolation and the census are automated
 and run on demand, and mutation now is too: the harness is a committed,
 byte-shared instrument (`make test-mutation` in both repositories) with
-per-repo mutant sets — as of this draft, twenty-four on the first system and
-nineteen on the second, all caught — pinning the canon, the scoring views,
+per-repo mutant sets — twenty-four on the first system and nineteen on the
+second, all caught as of 2026-11-16 — pinning the canon, the scoring views,
 importer branches, summary sheets, tag mappings, CLI write paths, adapter
 precedence, the scanner boundary, and the judgment-side gates; the method is
 reproducible rather than remembered. The hosted arc (§9) is now a committed
@@ -890,6 +916,12 @@ but three mutants sample one toy agent, forty-three mutants across two
 suites still sample a fraction of their assertions, provenance
 remains a hand-applied discipline, and nearly every area sampled so far has
 paid out (§7.1–7.2), so the honest expectation is still that more remains.
+The mutant sets also decay. Between v2.1 and v2.2 one mutant on each system
+went stale when the code it mutated was restructured — its find pattern
+matched nothing, so it reported a spec error rather than a verdict — and one
+of the two had gone stale two days before v2.1 claimed all nineteen caught.
+A committed mutant guards a line, not a behavior; when the line moves, the
+mutant has to be retargeted, and only a full census run notices.
 
 **A sample of two sibling systems, one probabilistic cousin, and one hosted
 toy — one domain, one author.** The second system
