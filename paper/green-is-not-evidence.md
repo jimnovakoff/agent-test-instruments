@@ -5,7 +5,7 @@ four instruments that found it**
 
 *Subject systems: a CMMC Level 2 assessment agent pair and their guardrailed chatbot*
 
-*James Novakoff — CMMCSecureCloud LLC — v2.2, 2026-11-16*
+*James Novakoff — CMMCSecureCloud LLC — v2.3, 2026-11-18*
 
 ---
 
@@ -626,6 +626,46 @@ guardrail defect fixed at the prompt level, and the honest caveat standing —
 the durable repair for the artifact class is paired-response INV assertions
 or a judge, not more vocabulary.
 
+### 7.4 An outside checklist, used as a probe
+
+Two days after v2.2, a practitioner session (ten agent-architecture
+decisions, presented by two Salesforce CTAs) was put to the use §3 puts
+CheckList to: an external list of things a suite should be able to say
+something about, held against what the primary suite actually contains.
+Two of the ten concern the org an agent runs in rather than the agent, and
+were set aside. Of the eight that apply, five were already carried:
+metadata-as-instruction, scale, outcome-not-path assertions, tracing (the
+attribution and provenance tests of §6), and idempotent retries, which
+turned out to be the INV column's idempotency checks under a name nobody
+had mapped to it. Two were carried in part: least privilege and tool
+governance. One had no test at all: a fallback for every step that can
+fail.
+
+The scanner fetches from the org three ways, and each can fail three ways:
+a timeout, a non-zero exit, or output that does not parse. None of those
+paths was exercised. Writing the tests was quick (fifteen DIR tests). What
+mattered was what writing them exposed. Two of the three paths turn a failed
+fetch into an absent value and evaluate it, and the comparison function
+treats absence as compliant for three operators (`absent`, `ne`,
+`not_in_set`). That is correct for a field that is genuinely missing from
+metadata. On a network path it means a check written with any of those
+operators would turn a timeout into a pass: a silent false Met, the worst
+output this system can produce. No current check does, so the exposure is
+latent, not live. The test that came out of it is therefore a guard over
+the check table rather than a fix: it fails the day such a check is added.
+
+The same pass found a DRIFT instance outside the code. The scenario
+document the agent is exercised against had its mock data moved to the DoD
+ODP values in April, but the clean-org scenario's expected findings still
+carried the pre-ODP numbers: a 14-character password, three attempts,
+thirty minutes. Against that table, a correct agent fails the
+false-positive test. The scenarios are graded by a person reading the
+table, so nothing flagged it for seven months. That is §6's lesson in a
+prose artifact: an expected answer is a carrier too, and it needs a source
+of truth like any other.
+
+Census after the pass: DIR 29 → 44, collection 638 → 653.
+
 ---
 
 ## 8. The calibration record
@@ -1022,6 +1062,9 @@ not released; the defect classes and counts reported here are the record.
   Mutation Testing.* IEEE Transactions on Software Engineering 37(5).
 - Meszaros, G. (2007). *xUnit Test Patterns: Refactoring Test Code.*
   Addison-Wesley. Interacting Tests and Mystery Guest smells; test independence.
+- Sharma, N., & Keswani, P. (2026). *10 Agent Architecture Patterns from
+  AIforce: Dreamforce to Architects.* Salesforce Architects live session,
+  2026-11-12 (LinkedIn Events). The external checklist of §7.4.
 - Jones, N. (2026). *My honest field notes on the verification gap no
   one's talking about.* Nate's Newsletter.
   https://natesnewsletter.substack.com/p/my-honest-field-notes-on-the-verification
