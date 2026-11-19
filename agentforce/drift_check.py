@@ -30,6 +30,7 @@ Zero model calls — this is still the free half of the methodology.
 """
 
 import argparse
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -43,8 +44,22 @@ except ImportError:
 
 
 def run(cmd):
+    # Resolve the executable: on Windows `sf` is sf.cmd, which CreateProcess
+    # will not find from a bare name.
+    cmd = [shutil.which(cmd[0]) or cmd[0], *cmd[1:]]
     proc = subprocess.run(cmd, capture_output=True, text=True, shell=False)
     return proc.returncode, proc.stdout + proc.stderr
+
+
+def _norm(value):
+    """One comparable form per field. An absent key, None, an empty string
+    and an empty list all mean 'nothing set' (the CLI's --from-definition
+    writes [] where a hand-written spec omits the key), and a YAML block
+    scalar's trailing newline is not a difference in the expectation.
+    Without this every case reads as drifted on a clean deploy."""
+    if value is None or value == '' or value == [] or value == {}:
+        return ''
+    return str(value).strip()
 
 
 def normalize(doc):
@@ -53,7 +68,7 @@ def normalize(doc):
     out = {}
     for tc in (doc or {}).get('testCases', []) or []:
         key = str(tc.get('utterance', '')).strip()
-        out[key] = {k: str(tc.get(k, '')) for k in
+        out[key] = {k: _norm(tc.get(k)) for k in
                     ('expectedTopic', 'expectedActions', 'expectedOutcome',
                      'customEvaluations', 'contextVariables',
                      'conversationHistory')}
@@ -71,7 +86,9 @@ def main():
 
     local = normalize(yaml.safe_load(Path(args.spec).read_text(encoding='utf-8')))
 
-    with tempfile.TemporaryDirectory() as tmp:
+    # The CLI refuses a retrieve target outside the SFDX project, so the
+    # scratch directory is made in the current (project) directory.
+    with tempfile.TemporaryDirectory(prefix='.drift-', dir='.') as tmp:
         code, out = run(['sf', 'project', 'retrieve', 'start',
                          '-m', f'AiEvaluationDefinition:{args.definition}',
                          '-o', args.org, '-r', tmp, '--json'])

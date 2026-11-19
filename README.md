@@ -30,8 +30,8 @@ the paper is the yield.
 
 ## The generic Python instruments (`python/`)
 
-Work on any pytest codebase. Under 500 lines combined, no dependencies beyond
-pytest itself.
+Work on any pytest codebase. Four short scripts, no dependencies beyond pytest
+itself (`mutation_sample.py` uses coverage.py if it is installed).
 
 - **`matrix_census.py <testfiles...>`** — counts tests per type using a naming
   convention (`_inv_` / `_dir_` / `_drift_` in the test name; everything else
@@ -56,6 +56,16 @@ pytest itself.
   breadth), a curated mutant file is **institutional memory**: each entry is a
   named, explained defect that happened or nearly happened, re-verified on
   demand forever. Write yours from your own postmortems.
+- **`mutation_sample.py --source FILES --tests ARGS [--n 100] [--seed 1]`** —
+  the number a curated mutant file cannot give you. It lists every mutant a
+  fixed operator set can make in the given source files, draws N with a
+  recorded seed, runs the tests against each, and reports killed / survived
+  with a sampling interval. Nobody chooses which lines get broken, so the
+  score does not depend on trusting whoever wrote the code or the tests. Same
+  byte-exact restore and fresh bytecode cache as `mutation_census.py`. Python
+  source only; strings are not mutated, so SQL or XML held in strings is
+  outside the sample. Survivors are either missing tests or equivalent
+  mutants: read each one.
 
 ## The Agentforce instruments (`agentforce/`)
 
