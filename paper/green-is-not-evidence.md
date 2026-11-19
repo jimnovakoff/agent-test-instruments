@@ -1,233 +1,218 @@
 # Green Is Not Evidence
 
-**An experience report: what a mature, passing test suite concealed, and the
-four instruments that found it**
+**A field report: what a mature, passing test suite was hiding, and the four
+checks that found it**
 
-*Subject systems: a CMMC Level 2 assessment agent pair and their guardrailed chatbot*
+*Systems studied: a pair of CMMC Level 2 assessment tools and their guarded chatbot*
 
-*James Novakoff — CMMCSecureCloud LLC — v2.3, 2026-11-18*
+*James Novakoff, CMMCSecureCloud LLC, v2.4, 2026-11-19*
 
 ---
 
 ## Abstract
 
-A test suite reports two things: which tests exist, and whether they pass. It
-reports nothing about whether those tests would fail if the system broke. That
-second property is normally taken on faith, and for systems with a probabilistic
-component the faith is at least occasionally disturbed: a dead test tends to
-surface as flakiness, disagreement between runs, something a person notices.
+A test run tells you two things: which tests exist, and whether they pass. It
+does not tell you whether those tests would fail if the code broke. Most teams
+assume they would.
 
-For deterministic systems it never surfaces at all. A test that asserts nothing
-is permanently, silently green.
+On a system with an AI model in it, a broken test usually shows itself sooner
+or later: results flicker between runs, and someone notices. On ordinary,
+predictable code that never happens. A test that checks nothing stays green
+forever, and nothing will ever tell you.
 
-This paper describes four instruments developed while hardening a CMMC Level 2
-assessment agent — a system that scores a defense contractor's Salesforce
-environment against the 110 NIST SP 800-171 controls and maintains the crosswalk
-a certification assessment depends on. A wrong output in this domain means a
-wrong score submitted to a federal database under an executive's
-affirmation.
+This report covers four checks I built while hardening a CMMC Level 2
+assessment tool. The tool scores a defense contractor's Salesforce org against
+the 110 NIST SP 800-171 controls and keeps the crosswalk an assessment depends
+on. If it is wrong, a wrong score can end up in a federal database under an
+executive's signature.
 
-The first instrument is Ribeiro et al.'s capability × test-type matrix from
-*CheckList* (ACL 2020), extended with a fourth column the domain required. That
-instrument answers *where are there no tests*. The other three answer questions
-CheckList does not ask: whether a test can run at all on its own, whether it
-fails when the thing it guards breaks, and whether it reads the artifact its own
-name claims. Applied to a suite of 480 passing tests, they surfaced fifteen
-defects — nine in product code, six in the test suite itself — several of which
-had been present since the initial commit.
+The four checks answer four questions about a test suite:
 
-One framing fact matters throughout: during the whole period measured here,
-these systems' outputs INFORMED a certified assessor's manual reviews and never
-replaced them. Every client-facing number passed through human judgment, so the
-defects below were found and fixed while being wrong was still free. The
-instruments are what let an advisory tool earn autonomy; that ordering is the
-point, and §8.1 makes it the closing question.
+1. **Where are there no tests at all?** A coverage map borrowed from the
+   CheckList paper (Ribeiro et al., 2020), with one extra column this domain
+   needed.
+2. **Does each test pass on its own,** or only when the tests before it ran
+   first?
+3. **Does each test fail when the thing it guards breaks?** (Mutation testing.)
+4. **Does each test read the thing its name says it checks,** or a copy of it?
 
-A third subject extends the measurement past determinism: the practice's
-public chatbot, a large language model behind a ~21k-token system prompt,
-guarded by a 126-case suite of deterministic string assertions. The same four
-instruments — the free half first, at zero model-call cost — found the suite
-measuring the model's refusal *style* rather than its behavior, one real
-guardrail defect, and a checker that had been dead for four months while
-calling itself blocking (§7.3).
+I ran them against 480 tests that all passed. They found fifteen defects: nine
+in the product and six in the tests themselves. Several had been there since
+the first commit.
 
-The paper closes with a calibration record: the author's confidence estimates,
-stated numerically before and after each instrument ran, were systematically
-optimistic by 15–20 points on links that had not been instrumented, and roughly
-accurate on links that had. That gap is the argument for instruments over
+One fact matters throughout. During this whole period the tool advised a
+certified assessor; it never replaced one. Every number a client saw went
+through a person first, so these defects were found while they were still
+harmless. Checks like these are how an advisory tool earns the right to do
+more on its own. §8.1 comes back to that.
+
+I also ran the same four checks against a third system: our public chatbot, a
+language model behind a large system prompt, with 126 test cases. They showed
+that the tests were measuring how the model phrased its refusals, not whether
+it refused. They also found one real guardrail defect, and a check that had
+been dead for four months while still reporting itself as blocking (§7.3).
+
+The report ends with a record of my own confidence estimates. Before each check
+ran, I wrote down how sure I was. On parts of the system no check had touched,
+I was too optimistic by 15 to 20 points. On parts that had been checked, I was
+about right. That gap is the argument for running checks instead of trusting
 judgment.
 
-Underneath the individual findings, the sessions kept measuring one thing
-in different clothes: a suite has two sizes — the number of tests it
-contains, and the amount of independent evidence those tests produce — and
-every defect class reported here is a mechanism by which the first
-overstates the second while hiding the overstatement. The campaign grew a
-mature 480-test suite to 644, aimed almost entirely at holes and dead
-tests its author could not see from inside; his calibrated estimates
-missed the same gap by the same margin. The four instruments are best
-understood jointly, as an estimator of *effective* coverage — a quantity
-no dashboard reports.
+The common thread: every test suite has two sizes. One is the number of tests.
+The other is how much real, independent evidence those tests give you. Every
+defect in this report is a way the first number overstates the second without
+showing it. Closing that gap grew the suite from 480 tests to 644, almost all
+aimed at holes I could not see from the inside.
 
-**This is an experience report, not a methods paper.** Three of the four
-instruments are established practice that we re-derived under field pressure
-rather than invented; §1.1 says which, and credits the literature. The
-contribution on offer is the measurement — what a specific mature suite actually
-contained, in a domain where being wrong is a false statement to the federal
-government — together with one small extension to CheckList's taxonomy and the
-calibration record. A reader looking for a novel technique should stop here.
+**This is a field report, not a new method.** Three of the four checks are
+established practice that I rediscovered under pressure. §1.1 says which ones
+and credits the original work. What this report adds is the measurement: what a
+real, mature test suite turned out to contain, in a field where being wrong
+means a false statement to the federal government. If you are looking for a
+new technique, this is not it.
 
 ---
 
 ## 1. What 480 green tests tell you
 
-The suite under study had 480 tests, all passing, accumulated over five months
-of active development against a live compliance product. It had caught real
-regressions. It was organized into named categories — schema integrity, column
-spec, round-trip, triggers, export, CLI — and a `make` target per category.
+The suite had 480 tests, all passing, built up over five months of work on a
+live compliance product. It had caught real bugs before. The tests were grouped
+into categories (schema, columns, round-trip, triggers, export, command line),
+each with its own `make` target.
 
-By every visible signal it was a healthy suite.
+By every visible sign, it was a healthy suite.
 
-The categories are the first thing worth examining, because they are a map of
-the *codebase* rather than a map of what the system is supposed to do. "Schema",
-"columns", "export", "CLI" enumerate where code lives. Filed that way, an
-untested behavior leaves no visible hole: there is no cell to be empty, because
-the filing is by artifact and every artifact has some tests.
+The categories were the first problem. They describe where the code lives, not
+what the system is supposed to do. Grouped that way, a behavior with no test
+leaves no visible gap: every category has some tests, so nothing ever looks
+empty.
 
-That observation is what sent us to CheckList.
-
----
+That is what sent me to CheckList, which groups tests by what they check
+instead.
 
 ### 1.1 What is not new here
 
-Three of the four instruments below are established practice. We arrived at them
-by hitting the problems they solve, not by reading the literature first, and the
-report is more useful if that is said plainly rather than left for a reader to
-discover.
+Three of the four checks are established practice. I arrived at each one by
+hitting the problem it solves, not by reading about it first, and it is more
+honest to say so up front.
 
-**Mutation testing (§5) is from 1978.** DeMillo, Lipton and Sayward proposed it
-in *Hints on Test Data Selection*, and its founding premise is exactly the claim
-§5 makes: a passing test is worthless until you demonstrate it fails when the
-code breaks. There is a large literature since — Jia and Harman's 2011 survey is
-the standard entry point — and mature tooling in most ecosystems (PIT for the
-JVM, `mutmut` and `cosmic-ray` for Python, Stryker for JavaScript). Had we
-reached for an existing tool rather than a fifty-line harness, we would have got
-better mutation operators and worse control over which code paths the mutants
-touched; §5.1 is the reason that trade mattered here, but it is a trade, not an
-absence of prior art.
+- **Mutation testing (§5) dates from 1978** (DeMillo, Lipton and Sayward). Its
+  core idea is the one this report relies on: a passing test proves nothing
+  until you show it fails when the code breaks. Mature tools exist (PIT for
+  Java, `mutmut` and `cosmic-ray` for Python, Stryker for JavaScript). I wrote
+  a fifty-line version instead, which gave me fewer mutation types but tighter
+  control over which code each mutant touched. §5.1 explains why that mattered.
+- **Test independence (§4) is standard advice.** "Tests should not depend on
+  run order" is in Meszaros's *xUnit Test Patterns*, and most test runners can
+  shuffle tests to enforce it. What I add is a ratchet and a number.
+- **Checking against the real source (§6) is a known problem.** It is a case of
+  what the same book calls the Mystery Guest: a test whose result depends on a
+  file the reader cannot see. What I add is that the hidden file is often a
+  copy of the real source, which makes the problem much harder to spot. A test
+  reading a cached database is reading the right data, until the day the cache
+  goes stale.
 
-**Test independence (§4) is standard xUnit doctrine.** "Tests should not depend
-on execution order" appears in Meszaros's *xUnit Test Patterns* as the
-Interacting Tests smell, and every major runner ships a randomizer to enforce
-it. Our contribution is a ratchet and a number, not the idea.
+What is new is modest:
 
-**Assert-against-the-source (§6) is a named test smell.** It is a specific
-instance of what the same literature calls the Mystery Guest — a test whose
-outcome depends on an artifact it does not name and the reader cannot see. What
-we add is the observation that the artifact is often a *derivative of the real
-source* rather than an unrelated file, which makes it far harder to spot: a test
-reading a cached database really is reading the right data, until the day the
-cache is stale.
-
-What we believe is genuinely new, and it is modest:
-
-- **The DRIFT column (§3.2)** — one fact, many carriers — as a fourth test type
-  alongside MFT/INV/DIR. CheckList's three types all assume one input mapping to
-  one output; multi-carrier facts are a different failure mode, and in a
-  compliance system they are the dominant one.
-- **The calibration record (§8)** — confidence estimates that were accurate on
-  probed components and optimistic by a consistent margin on unprobed ones. At
-  n=1 this is an observation, not a result.
-- **The inversion (§11)** — that determinism removes the signal which would
-  otherwise reveal a dead test. The mutation-testing literature assumes you know
-  your tests might be inadequate; the point here is that on deterministic code
-  nothing will ever tell you, so the assumption has to be replaced by a standing
-  check.
-
-The rest is a measurement of what those instruments found in one real system.
+- **The DRIFT column (§3.2).** One fact often lives in several places (a
+  database, an export, a document). A DRIFT test checks each copy against the
+  single source of truth. CheckList's three test types assume one input and one
+  output, so they cannot catch this, and in a compliance system it is the most
+  common kind of error.
+- **The confidence record (§8).** My estimates were accurate on parts that had
+  been checked and too optimistic on parts that had not. With one author, that
+  is an observation, not a proven result.
+- **The main point (§11).** On predictable code, nothing will ever tell you a
+  test is dead. So instead of assuming your tests might be weak, you need a
+  standing check that proves they are not.
 
 ---
 
-## 2. Step zero: shrink the surface
+## 2. Step zero: make the risky part smaller
 
-The cheapest behavioral test is the one you never have to write. Before
-classifying tests, ask of every rule the system enforces: *can this be expressed
-deterministically?* If yes, move it out of the probabilistic layer entirely —
-into a specification table, a database constraint, a trigger, a domain-specific
-rule language — and test it like ordinary code.
+The cheapest test is the one you never have to write. Before sorting tests into
+types, ask of every rule the system enforces: *can this be written down as a
+fixed rule?* If it can, take it away from the model entirely. Put it in a
+table, a database constraint, a trigger or a small rule language, and test it
+like any other code.
 
-In this agent that took the form of `control_check_spec`: a database table of
-mechanical checks (field, operator, threshold, target control) that a scanner
-evaluates against retrieved Salesforce metadata. "Session timeout must be
-≤ 15 minutes" is not a judgment call a model should re-derive per engagement; it
-is a row. The agent's judgment is reserved for what genuinely needs it —
-interpreting novel org configurations, drafting findings prose — and the spec
-rows are tested with exact assertions.
+In this tool that meant `control_check_spec`, a database table of mechanical
+checks. Each row names a field, an operator, a threshold and the control it
+supports, and a scanner evaluates the rows against settings pulled from
+Salesforce. "Session timeout must be 15 minutes or less" is not a judgment call
+a model should make fresh on every engagement. It is a row. The model's
+judgment is kept for the work that really needs it, such as reading an unusual
+org configuration or drafting the wording of a finding, and the rows are tested
+with exact assertions.
 
-Hosted agent platforms have converged on the same move. Salesforce's Agent
-Script, a deterministic guardrail DSL for Agentforce, exists precisely so that
-business rules follow code paths rather than model reasoning. Whatever the
-mechanism, the principle holds: **the probabilistic surface you must behaviorally
-test should be the smallest one the product can tolerate.**
+Hosted agent platforms have landed on the same idea. Salesforce's Agent Script,
+a fixed-rule guardrail language for Agentforce, exists so that business rules
+follow code instead of model reasoning. Whatever the mechanism, the principle
+holds: **keep the part of the product that depends on a model's judgment as
+small as the product can tolerate.**
 
-There is a corollary this paper is largely about. Every rule you push down into
-the deterministic layer becomes a rule whose failure is silent. You have traded
-a noisy failure mode for a quiet one, and the instruments below are the price of
-that trade.
+There is a catch, and most of this report is about it. Every rule you move into
+fixed code becomes a rule whose failure is silent. You have traded a noisy kind
+of failure for a quiet one, and the four checks below are the price of that
+trade.
 
 ---
 
-## 3. Instrument 1 — the coverage map
+## 3. Check 1: where are there no tests at all?
 
-*Question answered: where are there no tests?*
+CheckList proposes a grid. Each row is something the system should be able to
+do, each column is a type of test, and each cell holds however many tests
+cover that pairing. The empty cells are the result. CheckList has three test
+types:
 
-CheckList proposes a matrix: capabilities as rows, test types as columns, each
-cell holding zero or more tests. The empty cells are the output. Three types:
+- **MFT** (minimum functionality): give an input and its expected output. You
+  have to know the right answer.
+- **INV** (invariance): change the input in a way that cannot change the right
+  answer, and check that the output stays the same.
+- **DIR** (directional): change the input in a way that must move the answer
+  in a known direction, and check that it moves that way.
 
-- **MFT** — minimum functionality. Supply an input and its expected output.
-  Requires knowing the right answer.
-- **INV** — invariance. Perturb the input in a way that cannot change the
-  correct answer; assert the output is unchanged.
-- **DIR** — directional expectation. Perturb in a way that must move the answer
-  a known direction; assert it moves that way.
+### 3.1 The test types are about the cost of answers, not about AI
 
-### 3.1 The test types are about label economics, not determinism
+The usual reason for skipping CheckList on ordinary code is that it was
+designed for machine-learning models. That misreads it.
 
-The usual reason given for skipping CheckList on non-ML systems is that it was
-designed for models. That reads the taxonomy wrong.
+The three types differ in **what you can check**, not in whether the system is
+predictable. MFT needs you to know the right answer. INV and DIR only need a
+relationship between two runs. Ribeiro and colleagues used INV and DIR because,
+for a language model, the right answer is expensive to get and often not
+clear-cut.
 
-MFT/DIR/INV divide on **what you can assert**, not on whether the system is
-deterministic. MFT needs you to know the right answer. INV and DIR need only a
-relationship between two runs. Ribeiro reached for INV and DIR because for an
-NLP model the right answer is expensive to obtain and often underdetermined.
+That problem is really about how many answers you need, and it shows up at
+scale whether or not a model is involved. I knew every right answer in this
+system and still could not afford to write them all down. Writing expected
+values by hand for 110 controls across 6 columns is 660 chances to make a typo
+in a fixture. Instead, the directional scoring test generates 220 checks from a
+rule, and the export test generates 660. The cost problem is the same as in the
+CheckList paper; only the cause is different.
 
-That is a property of **label scarcity**, and label scarcity is a property of
-*scale*, not of non-determinism. We knew every right answer in this system and
-still could not afford to write them: hand-authoring 110 controls × 6 columns of
-expected values is 660 opportunities to typo a fixture. The directional scoring
-test generates 220 assertions from a rule; the export fidelity test generates
-660. Same economics as the paper, different cause.
+### 3.2 A fourth column this domain needed
 
-### 3.2 A fourth column the domain required
+The three types assume one input and one output. Compliance data fails in a
+different way: **one fact kept in many places.**
 
-Three types assume one input mapping to one output. Compliance data has a
-different failure mode: **one fact living in many places**.
+The SPRS point values (how many points each of the 110 controls is worth) were
+stored in eight places: a seed script, the schema bootstrap, the live database,
+a generated reference page, a test fixture, two skill documents and a chatbot
+system prompt. The copies drifted apart. Nobody noticed for three and a half
+months, and during that time five of the eight copies would have given a
+confident, wrong answer.
 
-The SPRS point values — how many points each of the 110 controls is worth —
-existed in eight carriers: a seed script, a schema bootstrap, the live database,
-a generated markdown reference, a regression fixture, two skill documents, and a
-chatbot system prompt. They drifted. The discrepancy went undetected for three
-and a half months, during which any of five carriers would have given a
-confidently wrong answer.
+No MFT, INV or DIR test catches that, because no single input and output is
+wrong. So the grid got a fourth column:
 
-No arrangement of MFT, INV or DIR catches that, because nothing about a single
-input/output pair is wrong. So the matrix grew a fourth column:
+- **DRIFT** (one fact, many copies): check each copy against the one source of
+  truth, and name both sides in the failure message.
 
-- **DRIFT** — one fact, many carriers. Assert each carrier against the single
-  designated source of truth, and name both sides in the failure message.
+### 3.3 What the count showed
 
-### 3.3 What the census showed
-
-Classify every test, count per column, print the grid including zeros:
+Sort every test into a column, count each column, and print the grid with the
+zeros showing:
 
 ```
   test type   count    share
@@ -237,816 +222,840 @@ Classify every test, count per column, print the grid including zeros:
   DRIFT           5     1.0%
 ```
 
-(The column sums exceed 480 because the census classifies every test the
-runner collects, and the suite had already grown past its starting 480 by
-the time the census first ran — the count is of the collection at that
-moment, not the session-start headline.)
+(The total is more than 480 because the count covers every test the runner
+collects, and the suite had already grown past 480 by the time I first ran
+it. The count is a snapshot of that moment, not of the starting figure.)
 
-Two directional tests, on a system whose entire purpose is to
-compute a number that moves. The suite could prove the score was 110 when
-everything passed and −203 when everything failed, and had almost nothing to say
-about the 108 values in between or about which direction a fix moved the number.
+Two directional tests, in a system whose whole job is to compute a number that
+moves. The suite could prove the score was 110 when everything passed and −203
+when everything failed. It had almost nothing to say about the 108 values in
+between, or about which way a fix moved the score.
 
-Note also that no new tests were written to produce this table. The INV column
-was already 33 tests — idempotency checks, round-trips, dry-run assertions —
-written by people who never used the word invariance. The census creates no
-coverage. What it does is make existing coverage legible, and the
-illegibility was the only reason nobody had noticed DIR was nearly empty.
-
----
-
-## 4. Instrument 2 — isolation
-
-*Question answered: is this a test, or a fragment of one?*
-
-Run every test alone in a fresh interpreter. Anything that fails is coupled to
-execution order.
-
-In this suite, **20 of 105** tests in one file failed alone. The coupling was
-intra-class: classes modeled a lifecycle — plan → dry-run → execute → verify →
-skip → reset — with each test asserting one transition and inheriting state from
-the test before it.
-
-That is a defensible thing to want and an indefensible way to get it. The costs:
-
-- `pytest --lf`, the first move when something breaks, reports a false failure.
-- One real defect in an early test cascades into every test that depended on its
-  state; one bug reads as eleven.
-- Any selector that cuts across the ordering — a test-type column, a `-k`
-  filter, a future parallel runner — breaks.
-- Twenty tests carrying twenty names yield one piece of evidence, not twenty. A
-  suite's count overstates its independent checks by exactly this margin.
-
-The fix is per-test preconditions via idempotent helpers, not consolidation:
-collapsing twelve tests into one lifecycle test removes the coupling by removing
-the tests, and makes failure localization worse.
-
-One subtlety worth stating, because it is easy to get wrong: **the precondition
-must establish the interesting state, not merely a row that exists.** A test
-asserting that `reset` returns an action to `planned` must first drive it to
-`skipped`. Resetting an already-planned action passes while proving nothing —
-trading order-coupling for a tautology.
+Also note that I wrote no new tests to produce this table. The INV column
+already had 33 tests (repeat-run checks, round trips, dry-run checks), written
+by people who never used the word "invariance." The count adds no coverage.
+What it does is make the existing coverage visible, and the lack of visibility
+was the only reason nobody had noticed that DIR was nearly empty.
 
 ---
 
-## 5. Instrument 3 — mutation
+## 4. Check 2: does each test pass on its own?
 
-*Question answered: does this test fail when the thing it guards breaks?*
+Run every test by itself in a fresh process. Any test that fails alone depends
+on the tests that ran before it.
 
-Break the behavior deliberately. Confirm the test fails. Restore.
+In this suite, **20 of 105** tests in one file failed when run alone. The
+coupling was inside each test class. The classes modeled a lifecycle (plan,
+dry run, execute, verify, skip, reset), and each test checked one step while
+relying on the state the previous test had left behind.
 
-This is the instrument the other three cannot substitute for, and it is the one
-that changed our estimate of the suite most. Isolation proves a test *runs*
-alone; it says nothing about whether it *asserts* anything. A test can be
-independently runnable, correctly classified, in a well-populated cell, and
-still be dead.
+Wanting to test a lifecycle is reasonable. Doing it this way is not. The costs:
 
-Of the 20 tests decoupled under instrument 2, **18 caught their mutation and 2
-did not**:
+- `pytest --lf`, the first thing you run when something breaks, reports a
+  false failure.
+- One real bug in an early test spreads to every test that relied on its state,
+  so one bug looks like eleven.
+- Anything that runs the tests in a different order or a different subset (a
+  run by test type, a `-k` filter, a future parallel runner) breaks.
+- Twenty tests with twenty names give you one piece of evidence, not twenty.
+  The suite's test count overstates its independent checks by exactly that
+  margin.
 
-**A tautology.** A test named `test_verify_logs_gap_to_met_transition` asserted
-that an audit row recorded `old_status = 'Suspected Gap'` and
-`new_status = 'Met'`. The code under test wrote those two values as hardcoded
-string literals:
+The fix is to give each test its own setup through helpers that can safely run
+more than once, not to merge the tests. Collapsing twelve tests into one big
+lifecycle test removes the coupling by removing the tests, and makes it harder
+to see what failed.
+
+One detail is easy to get wrong: **the setup must create the state the test
+cares about, not just a row that exists.** A test checking that `reset` returns
+an action to `planned` must first move it to `skipped`. Resetting an action
+that is already planned passes and proves nothing. You have swapped an
+order problem for a test that cannot fail.
+
+---
+
+## 5. Check 3: does each test fail when the thing it guards breaks?
+
+Break the code on purpose. Confirm the test fails. Put the code back. This is
+mutation testing, and each deliberate break is called a mutant.
+
+None of the other three checks can stand in for this one, and it changed my
+view of the suite more than any other. Running a test alone proves it *runs*
+alone. It says nothing about whether the test *checks* anything. A test can run
+on its own, sit in the right column of a well-filled grid, and still be dead.
+
+Of the 20 tests I fixed under check 2, **18 failed when their code was broken,
+and 2 did not:**
+
+**A test that could not fail.** A test named
+`test_verify_logs_gap_to_met_transition` checked that an audit row recorded
+`old_status = 'Suspected Gap'` and `new_status = 'Met'`. The code under test
+wrote those two values as fixed text:
 
 ```python
 VALUES (?, ?, 'remediate.py', 'Suspected Gap', 'Met', NULL, ?, ?)
 ```
 
-The test asserted the literals against themselves. It could not fail while that
-INSERT existed. It had passed since the initial commit while proving nothing —
-and it was concealing a real defect, because the function never read the
-control's actual status. A control already `Met` still produced an audit row
-claiming it had transitioned from a gap. On a compliance artifact that is a
-fabricated record, not a stale one.
+The test compared the fixed text with itself. It could not fail as long as that
+line existed. It had passed since the first commit while proving nothing, and
+it was hiding a real defect: the function never read the control's actual
+status. A control that was already Met still got an audit row claiming it had
+moved from a gap to Met. On a compliance record, that is a made-up entry, not
+just an out-of-date one.
 
-**An incidental pass.** A test named `test_06_show_displays_detail` asserted
-that the string `SecuritySettings` appeared somewhere in a command's output.
-That string also appears in the target-field name and in the template XML, so
-redacting the metadata-type line the test was named for left it green. It could
-not tell whether the detail it existed to check was displayed at all.
+**A test that passed by accident.** A test named
+`test_06_show_displays_detail` checked that the word `SecuritySettings`
+appeared somewhere in a command's output. That word also appears in the field
+name and in the template XML, so removing the line the test was named for left
+it green. It could not tell whether the detail it existed to check was shown at
+all.
 
-### 5.1 Mutation testing's own failure mode
+### 5.1 How mutation testing misleads you
 
-The harness will lie to you in one specific way: **a mutation aimed at code the
-test does not execute reads exactly like a weak test.**
+The tool will mislead you in one specific way: **a mutant placed in code the
+test never runs looks exactly like a weak test.**
 
-This happened four times in one session. A mutation to a seed script that the
-bootstrap does not read. A mutation to an `UPDATE` branch in a code path whose
-fixtures take the `INSERT` branch. A mutation to a bootstrap file when the test
-reads an already-migrated database. Each produced a confident NOT CAUGHT that
-was the harness's fault.
+This happened four times in one session. A mutant in a seed script that the
+bootstrap does not read. A mutant in an `UPDATE` branch when the test data
+always took the `INSERT` branch. A mutant in a bootstrap file when the test
+read a database that had already been migrated. Each produced a confident NOT
+CAUGHT, and each time the tool was at fault, not the test.
 
-The discipline that resolves it: **when a mutation is not caught, first prove
-the mutation was effective** — run the whole file and confirm *something*
-fails. If nothing does, the mutation was inert and you have learned nothing
-about the test.
+The rule that fixes this: **when a mutant is not caught, first prove the
+mutant did something.** Run the whole file and confirm that *some* test fails.
+If none does, the mutant had no effect and you have learned nothing about the
+test.
 
-A day later, with the harness promoted from scratchpad to a committed
-instrument (§10), that last sentence turned out to be too strong. Twice in one
-session a mutant that survived the whole-file check was neither equivalent nor
-mis-aimed — it was mutating a live code path that **no test anywhere asserted
-on**. The importer's `UPDATE` branch (the branch every real re-import takes;
-every fixture imported into a fresh database and took `INSERT`), and the
-scanner's benchmark comparisons evaluated *at* the benchmark (observed equal to
-expected — the value a correctly configured org actually carries, because the
-benchmark is the recommended setting). Both mutations survived the entire
-suite. Each verdict became a new test the same day, and the mutants now catch.
-The refined reading: NOT CAUGHT indicts the named tests; an effective-but-
-uncaught mutation indicts the whole file's coverage of that path. Distinguish
-which before dismissing the verdict — the harness's "ineffective" bucket is
-where two of this system's coverage holes were found, and where the sibling
-system's largest one turned up on its first pass (§7.2): three instances
-across two repositories, all the same shape.
+A day later, once the tool was a committed part of the repository (§10), that
+rule turned out to be too strong. Twice in one session, a mutant that no test
+in the whole file caught was neither harmless nor misplaced. It had changed
+real, running code that **no test anywhere checked.** One was the importer's
+`UPDATE` branch: every real re-import takes it, but every test imported into a
+fresh database and took `INSERT`. The other was the scanner's comparisons at
+exactly the benchmark value: an org set exactly to the recommended value, which
+is what a correctly configured org has. Both mutants survived the entire suite.
+Each became a new test the same day, and both mutants are now caught.
 
-One further failure mode surfaced only once the harness ran long enough to
-overlap other work: **on a cloud-synced filesystem, reading a source file while
-the harness is rewriting it can serve stale content.** A search during a live
-census returned a version of a styling function containing a backslash defect
-that existed in no commit and not in the working tree — plausibly an old
-synced revision — and the phantom survived until checked against `git show
-HEAD`. The rule that follows: while a census runs, treat every read of a
-mutated file as suspect, and verify any finding against the repository's
-object store before acting on it.
+The better reading: NOT CAUGHT is a finding against the named tests. A mutant
+that works but that nothing catches is a finding against the whole file's
+coverage of that code. Work out which one you have before you dismiss the
+result. The "had no effect" pile is where two of this system's coverage holes
+turned up, and where the sibling system's biggest hole turned up on its first
+run (§7.2): three cases across two repositories, all the same shape.
 
-A third surfaced eleven weeks later, and it was in the harness's own
-runtime. Python trusts a cached `.pyc` when the source file's size and
-whole-second modification time match the cache header. A same-length
-mutant — `0.8` rewritten as `0.0`, two equal-length names swapped — written
-or restored inside the same second as the last compile therefore runs the
-*previous* bytecode. When the mutant is the stale side, a real mutant reads
-INEFFECTIVE; one alternated CAUGHT and INEFFECTIVE across repeat runs. When
-the restore is the stale side, the mutation outlives its own restore and
-the next mutant's guarding tests fail before anything is mutated — two
-"baseline red" verdicts on tests that pass alone. The fix is small:
-every pytest run gets an empty bytecode cache. The lesson is the §9 one,
-pointed back at the original harness: mutation tooling is code, and it
-earns trust the same way. Only repeat runs exposed this one.
+A second trap appeared only once the tool ran long enough to overlap other
+work: **on a cloud-synced drive, reading a file while the tool is rewriting it
+can return an old version.** A search during a live run found a version of a
+styling function containing a backslash bug that existed in no commit and not
+in the working copy, most likely an old synced copy. The phantom bug lasted
+until I checked it against `git show HEAD`. The rule: while a mutation run is
+going, treat every read of a mutated file as suspect, and confirm any finding
+against what git has stored before acting on it.
+
+A third trap appeared eleven weeks later, inside Python itself. Python reuses
+its cached `.pyc` file when the source file's size and modification time (to
+the whole second) match the cache. A mutant of the same length (`0.8` changed
+to `0.0`, or two equal-length names swapped) written or restored within the
+same second as the last compile therefore runs the *old* code. When the mutant
+is the stale side, a real mutant reads as having no effect; one mutant flipped
+between CAUGHT and no-effect across repeat runs. When the restore is the stale
+side, the mutant outlives its own restore, and the next mutant's tests fail
+before anything has been changed: two "failing at baseline" results on tests
+that pass alone. The fix is small: every test run gets an empty bytecode cache.
+The lesson is the one §9 draws, pointed back at the original tool: mutation
+tooling is code, and it earns trust the same way. Only repeat runs exposed this
+one.
 
 ---
 
-## 6. Instrument 4 — provenance
+## 6. Check 4: does each test read the thing its name says it checks?
 
-*Question answered: does this test read the artifact its name claims?*
+I found no existing name for this check, and it found five defects in a single
+session. As a rule:
 
-This one has no counterpart in the literature we found, and it produced five
-findings in a single session. Stated as a rule:
+> **Check the source itself, not a copy made from it.**
 
-> **Assert against the source, not against something derived from it.**
+Five cases, all the same shape:
 
-Five instances, all the same shape:
-
-| Test claimed to check | Actually read | Consequence |
+| The test claimed to check | It actually read | What that meant |
 |---|---|---|
-| the schema bootstrap every client DB is built from | a cached local database | a wrong point value in the bootstrap passed until someone cleared their cache |
-| the bootstrap's audit-column default | an already-migrated schema | reverting the source left the test green |
-| the production schema | a harness schema silently built with 0 of its 9 triggers | no trigger behavior was testable in 107 tests |
-| a sibling repository's parity | its own repository only | the same defect was fixed in one repo and left live in the other, twice |
-| whether a constraint enforced a domain | the constraint's *existence* | five constraints enforced nothing |
+| the schema bootstrap every client database is built from | a cached local database | a wrong point value in the bootstrap passed until someone cleared their cache |
+| the bootstrap's default for an audit column | a schema that had already been migrated | undoing the change in the source left the test green |
+| the production schema | a test schema quietly built with 0 of its 9 triggers | no trigger behavior could be tested in 107 tests |
+| that a sibling repository matched | its own repository only | the same bug was fixed in one repository and left in the other, twice |
+| whether a constraint enforced its allowed values | whether the constraint *existed* | five constraints enforced nothing |
 
-The last of those deserves its own note, because the failure is a language
-subtlety rather than an oversight:
+The last one deserves its own note, because the cause is a quirk of the
+language rather than carelessness:
 
 ```sql
 sqlite> SELECT 'Yes' IN ('Y','N','N/A',NULL);   -- NULL, not 0
 ```
 
-A bare `NULL` in an `IN` list makes every non-matching comparison evaluate to
-NULL rather than false, and SQLite treats a `CHECK` whose expression is NULL as
-**satisfied**. Five columns across four tables declared an enforced domain and
-enforced none of it. The column recording whether a policy had been verified
-accepted the value `'banana'`.
+A plain `NULL` in an `IN` list makes every comparison that does not match come
+out as NULL instead of false, and SQLite treats a `CHECK` that comes out NULL
+as **passed**. Five columns across four tables claimed a fixed list of allowed
+values and enforced none of it. The column recording whether a policy had been
+verified accepted the value `'banana'`.
 
-Structural tests would not have caught this — the constraint was present and
-correctly spelled. Only a behavioral probe (*insert something invalid and
-require rejection*) distinguishes an enforced constraint from a decorative one.
+A test that only looks at the schema would not catch this, because the
+constraint was there and spelled correctly. Only a test that tries something
+invalid and requires it to be rejected can tell a working constraint from a
+decorative one.
 
-And when the constraint was finally made to bite, it caught seven test fixtures
-that had been seeding `gap_risk = 'HIGH'` — uppercase, a value the schema had
-always declared illegal and the inert constraint had always accepted. Every test
-reasoning about that column had been working with a value the production trigger
-never emits.
+When the constraint was finally made to work, it caught seven test fixtures
+that had been writing `gap_risk = 'HIGH'`, in uppercase. The schema had always
+said that value was illegal, and the broken constraint had always let it
+through. Every test that reasoned about that column had been using a value the
+production trigger never produces.
 
 ---
 
-## 7. What the instruments found
+## 7. What the checks found
 
-Presented as evidence that the instruments work rather than as the point.
-Fifteen defects in one session against a mature, passing suite:
+These results are here as evidence that the checks work, not as the point of
+the report. Fifteen defects turned up in one session, against a mature suite
+that passed:
 
-**In product code**
-
-| Defect | Effect |
-|---|---|
-| A function defined, documented as part of the pipeline, never called | A new client's baseline set 2 controls instead of 48 — **150 SPRS points understated** |
-| Wiring that function in, unguarded | Would have overwritten **51 of 110** assessor dispositions, flipping documented gaps to Met — the score-*inflating* direction |
-| Audit attribution defaulting to a hardcoded personal username | Every unattributed change named a specific person who may not have made it |
-| The same defect in a sibling repository | Including a `change_note` naming a migration from the *other* product, copied and never noticed |
-| Verification writing audit transitions as literals | The audit trail could record a transition that never occurred |
-| Import never reading one editable column | The assessor's entry silently discarded on every round trip |
-| Import using `INSERT OR REPLACE` | Re-importing a **freshly exported** workbook destroyed the entire agent evidence trail |
-| Personal-username defaults on four more columns | Inherited by every client database |
-| Five inert `CHECK` constraints | Declared domains enforcing nothing |
-
-**In the test suite itself**
+**In the product**
 
 | Defect | Effect |
 |---|---|
-| 20 of 105 tests order-coupled | Count overstated independent evidence by ~19% |
-| Test harness building a schema with 0 of 9 triggers | An entire category of behavior unfalsifiable |
-| Canon tests reading a cached database | The highest-consequence check in the repo, reading the wrong artifact |
-| One tautological test | Asserted literals against themselves since the initial commit |
-| One incidental-substring test | Passed on a string that appears elsewhere in the output |
-| Seven fixtures seeding an illegal value | Tests reasoned about a value production never emits |
+| A function that was written and documented as part of the pipeline but never called | A new client's baseline set 2 controls instead of 48, **understating the score by 150 SPRS points** |
+| Wiring that function in without a guard | Would have overwritten **51 of 110** assessor decisions, flipping documented gaps to Met, the direction that *inflates* the score |
+| Audit records defaulting to one person's username | Every change with no named author was credited to a specific person who may not have made it |
+| The same defect in a sibling repository | Including a change note that named a migration from the *other* product, copied over and never noticed |
+| Verification writing audit entries as fixed text | The audit trail could record a change that never happened |
+| The import never reading one editable column | The assessor's entry was silently thrown away on every round trip |
+| The import using `INSERT OR REPLACE` | Re-importing a **freshly exported** workbook wiped out the agent's entire evidence trail |
+| Personal-username defaults on four more columns | Copied into every client database |
+| Five `CHECK` constraints that did nothing | Allowed-value lists that enforced nothing |
 
-Six of the fifteen defects were in the tests themselves, and that ratio is
-the real finding: a suite
-that is itself defective at that rate cannot be used to estimate the quality of
-anything else until the instruments have run.
+**In the tests themselves**
 
-There is a name for what this table keeps measuring. A suite has two
-sizes: its **nominal coverage** — the number of tests it contains, the
-figure every dashboard reports — and its **effective coverage**, the
-amount of independent evidence those tests actually produce. Every defect
-class above is a mechanism by which the first overstates the second:
-twenty coupled fragments sharing a few pieces of evidence among twenty
-names; a tautology contributing zero; checks whose evidence concerns a
-derivative rather than the subject they are named for. And each mechanism
-is invisible in a passing run, because overstatement never fails. The
-instruments of §§3–6 are individually cheap probes; jointly they are the
-only estimator of effective coverage we have found — the census maps
-where evidence could exist, isolation counts how many names share one
-piece of it, mutation tests whether a claimed piece exists at all, and
-provenance checks what the evidence is actually about. By that estimator,
-this mature, diligently built suite was carrying substantially less
-evidence than its count implied — the campaign that closed the gap grew
-it by a third — and nothing short of the instruments could have said so.
+| Defect | Effect |
+|---|---|
+| 20 of 105 tests depending on run order | The test count overstated independent evidence by about 19% |
+| A test setup building a schema with 0 of 9 triggers | A whole category of behavior could not fail any test |
+| Canon tests reading a cached database | The most important check in the repository was reading the wrong thing |
+| One test that could not fail | Compared fixed text with itself since the first commit |
+| One test that passed by accident | Passed on a word that appears elsewhere in the output |
+| Seven fixtures writing an illegal value | Tests reasoned about a value production never produces |
 
-The before-and-after, in the estimator's own units:
+Six of the fifteen defects were in the tests themselves, and that ratio is the
+real finding. A suite with defects at that rate cannot tell you how good
+anything else is until the checks have run.
 
-| Measure | Campaign start | Campaign close |
+This table keeps measuring one thing, and it is worth naming. A test suite has
+two sizes. One is the **number of tests**, the figure every dashboard shows.
+The other is **how much real, independent evidence** those tests give you.
+Every kind of defect above is a way the first number overstates the second:
+twenty dependent fragments sharing a few pieces of evidence among twenty names;
+a test that cannot fail adding nothing; tests that check a copy instead of the
+thing they are named for. And none of it shows in a passing run, because
+overstating never fails.
+
+Each of the four checks is cheap. Together they are the only way I have found
+to measure the second number. The coverage map shows where evidence could
+exist. The isolation check counts how many names share one piece of it.
+Mutation testing checks whether a claimed piece of evidence exists at all. The
+source check confirms what the evidence is actually about. Measured that way,
+this mature, carefully built suite carried much less evidence than its count
+suggested. Closing the gap grew the suite by a third, and nothing short of the
+checks could have shown it.
+
+Before and after:
+
+| Measure | Start | End |
 |---|---|---|
-| Tests passing (primary system) | 480 | 644 |
-| Census — MFT | 461 | 537 |
-| Census — INV | 33 | 38 |
-| Census — DIR | 2 | 29 |
-| Census — DRIFT | 5 | 34 |
-| Order-coupled tests | 20 (in one 105-test file) | 0, ratcheted (`--max 0`), run on demand |
-| Committed mutants, verified catching | 0 | 24 |
-| Tests known to assert against a derivative of their subject | 5 (found by provenance) | 0 known |
+| Tests passing (main system) | 480 | 644 |
+| Count by type: MFT | 461 | 537 |
+| Count by type: INV | 33 | 38 |
+| Count by type: DIR | 2 | 29 |
+| Count by type: DRIFT | 5 | 34 |
+| Tests depending on run order | 20 (in one 105-test file) | 0, held at zero (`--max 0`), run on demand |
+| Committed mutants, confirmed caught | 0 | 24 |
+| Tests known to check a copy instead of the source | 5 (found by check 4) | 0 known |
 | Sibling system: tests / mutants | 207 / 0 | 254 / 19 |
-| Author's calibrated confidence | 70 | 88, instrumented links only |
+| My stated confidence | 70 | 88, for the checked parts only |
 
-(Census figures classify the pytest collection at census time — 501 tests
-at the first census, 638 at the last — while the headline counts are CI
-passes; the two populations differ slightly by design. The DIR and DRIFT
-columns are the picture in miniature: the two test types the suite's
-authors had no name for grew fourteen-fold and seven-fold once the census
-made their absence visible.)
+(The counts by type cover every test the runner collected at the time: 501 at
+the first count, 638 at the last. The headline counts are passing tests in CI,
+so the two numbers differ slightly by design. The DIR and DRIFT rows are the
+whole story in small: the two test types the suite's authors had no name for
+grew fourteen-fold and seven-fold once the count made their absence visible.)
 
-### 7.1 The next session's yield
+### 7.1 The next day's results
 
-The instruments re-ran one day later, now as committed tooling, against links
-the first session had not probed. Every newly probed link again paid out:
+The checks ran again one day later, now as committed tools, against parts of
+the system the first session had not touched. Every newly checked part turned
+up something:
 
 | Found by | Defect | Effect |
 |---|---|---|
-| the harness's first committed run | importer `UPDATE` branch carried no value assertions anywhere in the suite | a parameter transposition — notes and artifact-type swapped on every re-import — survived the whole suite |
-| a mutation sample | no comparison ever evaluated at its benchmark boundary | an org at exactly the recommended setting (session timeout exactly 15 minutes) could read as a gap, unseen |
-| provenance, color carriers | tag colors hand-maintained in two more places than believed, against a golden table both had drifted from | the Unassessed font differed from the golden record in both carriers; three tag classes had no conditional-formatting rule at all, so selecting `[N/A — Assessed]` from the dropdown showed no fill |
-| provenance, CLI write path | `cw.py set` validated bracket tags against a hand-maintained constant | five of thirteen legitimate dispositions refused at the CLI |
-| the fix's own blast radius | a second test harness cloned the schema but not the golden tag table | the moment validation read the real table, every disposition write in that harness was silently refused — the hardcoded constant had been masking an empty reference table since the harness was written |
+| the first committed mutation run | no test anywhere checked the values written by the importer's `UPDATE` branch | a swap of two values (notes and artifact type traded places on every re-import) survived the whole suite |
+| a sample of mutants | no comparison was ever tested at exactly the benchmark value | an org set exactly to the recommended value (a 15-minute session timeout) could show as a gap, and nobody would see it |
+| check 4, on tag colors | tag colors were kept by hand in two more places than anyone thought, and both had drifted from the master table | the Unassessed font differed from the master in both copies; three tag types had no formatting rule at all, so choosing `[N/A — Assessed]` from the dropdown showed no color |
+| check 4, on the command-line write path | `cw.py set` checked tags against a hand-kept list | five of thirteen valid decisions were refused at the command line |
+| the side effects of that fix | a second test setup copied the schema but not the master tag table | once the check read the real table, every decision written in that setup was silently refused; the hand-kept list had been hiding an empty table since the setup was written |
 
-The suite grew by twenty tests; against the first census (§3.3) the DIR column
-has gone 2 → 13 and DRIFT 5 → 20. By that session's end, ten mutants were
-committed alongside the tests and run as `make test-mutation`, all ten
-caught; the mutant set has kept growing since (§10 carries the current
-count).
+The suite grew by twenty tests. Compared with the first count (§3.3), DIR went
+from 2 to 13 and DRIFT from 5 to 20. By the end of that session, ten mutants
+were committed with the tests and run as `make test-mutation`, and all ten were
+caught. The set has kept growing since (§10 has the current count).
 
 ### 7.2 The second system
 
-The subject so far is one codebase. Its sibling — an AWS assessment agent
-sharing the same 110-control canon, scoring arithmetic, and deliverable
-contract, but with an independent test suite (207 tests, five months of its
-own history) and independent exporter, adapter, and CLI code — had never had
-any of the instruments run against it. Porting the harness took an afternoon:
-the harness file itself is now byte-shared between the repositories and pinned
-identical by the cross-repo drift test, so the *instrument* is drift-guarded
-the same way the canon is; only the mutant sets differ, because the defects
-worth simulating are platform-specific.
+Everything so far is one codebase. Its sibling is an AWS assessment tool. It
+shares the same 110-control reference data, scoring math and deliverable
+format, but it has its own test suite (207 tests, five months of history) and
+its own export, adapter and command-line code. None of the checks had ever run
+against it.
 
-The first-ever mutation pass over that suite reproduced the first system's
-findings almost beat for beat:
+Bringing the tools over took an afternoon. The mutation tool is now the same
+file, byte for byte, in both repositories, and a DRIFT test keeps the two
+copies identical, so the tool itself is guarded the same way the reference data
+is. Only the mutant sets differ, because the defects worth simulating depend on
+the platform.
+
+The first mutation run on that suite repeated the first system's findings
+almost exactly:
 
 | Found by | Defect | Effect |
 |---|---|---|
-| the first mutation pass (5 of 6 caught) | transposing two columns in the family-sheet SELECT survived the **entire** 207-test suite | the export tests checked headers, sheet counts, and one tag cell — every workbook value could be present and wrong; the ineffective-mutant bucket again, exactly as §5.1 describes |
-| the agreement port | nothing pinned the gaps sheet's deliberate union semantic (CCA gaps **or** agent-flagged controls) | dropping one `OR` branch would silently remove scanner disagreements from the most-read sheet while every other number stayed right — now a caught mutation |
-| the fidelity port | the two CLIs disagree on what omitting notes means (one preserves the narrative, one overwrites it) | not a defect but an undocumented divergence between siblings; now pinned as intended semantics by a test on each side |
+| the first mutation run (5 of 6 caught) | swapping two columns in the export query survived the **entire** 207-test suite | the export tests checked headers, sheet counts and one tag cell, so every value in the workbook could be present and wrong; this was the "had no effect" pile again, just as §5.1 describes |
+| bringing over the agreement checks | nothing guarded the gaps sheet's deliberate rule (assessor gaps **or** controls the agent flagged) | dropping one `OR` would quietly remove scanner disagreements from the most-read sheet while every other number stayed right; that is now a caught mutant |
+| bringing over the round-trip checks | the two command-line tools disagree on what leaving notes out means (one keeps the existing text, one overwrites it) | not a defect, but an undocumented difference between the two tools; now fixed as intended behavior by a test on each side |
 
-The shape replicated too, which is worth more than the count: on both systems
-the value-carrying code proved **correct once probed** — the transposed-column
-mutant, once a fidelity test existed, was caught; the exporters, adapters, and
-CLIs carried what they were given. What the instruments found, on both
-systems, was *coverage that could not have noticed* — plus drift among
-hand-maintained copies of golden data. Two systems is still not many, but a
-second independent suite exhibiting the same failure taxonomy under the same
-instruments is the difference between an anecdote and a pattern.
+The pattern repeated too, which matters more than the count. On both systems,
+the code that carried the values turned out to be **correct once it was
+checked.** The swapped-column mutant was caught as soon as a round-trip test
+existed. The export, adapter and command-line code carried what it was given.
+What the checks found on both systems was *coverage that could not have noticed
+a problem*, plus drift between hand-kept copies of the master data. Two
+systems is still not many. But a second, separate suite showing the same kinds
+of failure under the same checks is the difference between an anecdote and a
+pattern.
 
-End state of the second system at that session's close: 218 tests passing,
-nine committed mutants, all caught, `make test-mutation` on both sides of the
-repository pair. (Both suites and both mutant sets have grown since; §10
-carries the current counts.)
+At the end of that session the second system had 218 tests passing, nine
+committed mutants, all caught, and `make test-mutation` in both repositories.
+(Both suites and both mutant sets have grown since; §10 has the current
+counts.)
 
-### 7.3 The third system: a probabilistic subject
+### 7.3 The third system: one with a model in it
 
-The first two systems are deterministic. The third is not: the practice's
-public chatbot — a hosted worker wrapping a large language model behind a
-~21k-token system prompt, guarded by a 126-case response-classification suite
-whose assertions are deterministic substring checks (contain-any, not-contain,
-not-echo). This is the quadrant §10 previously admitted was unmeasured. The
-instruments ran in two waves: the free half first (census, isolation analysis,
-provenance — zero model calls), then the paid half (a full-suite baseline plus
-a fix-and-verify cycle — roughly three hundred model calls, single-digit
-dollars).
+The first two systems are predictable. The third is not. It is our public
+chatbot: a hosted service wrapping a large language model behind a system
+prompt of about 21,000 tokens. It is guarded by a 126-case suite that sorts
+responses using fixed text checks (contains one of these words, does not
+contain this, does not repeat that). This is the area §10 used to list as
+unmeasured.
 
-The free wave paid out before a single model call:
+The checks ran in two rounds. The free round came first: the coverage map, the
+isolation review and the source check, with no model calls at all. The paid
+round came second: a full baseline run plus one cycle of fixing and verifying,
+about three hundred model calls in total, costing single-digit dollars.
 
-| Instrument | Finding | Effect |
+The free round found problems before a single model call:
+
+| Check | Finding | Effect |
 |---|---|---|
-| provenance | the blocking prompt-drift check had pointed at a filesystem path dead since a repo move four months earlier | the checker skipped on every run while calling itself blocking — the stale-path Mystery Guest again; resurrected, it confirmed no drift had accumulated while unguarded |
-| census | MFT 124 / INV 0 / DIR 0 / DRIFT 0 | the empty columns were not unwritten tests but **structurally inexpressible**: single-utterance cases with absolute string assertions cannot state a relationship between two responses |
-| census | 2 of the "126 cases" can never execute | the runner has no multi-turn support and silently skips them — suite-size inflation, the count overstating the evidence |
-| isolation | a full run needs one fresh session per case, against a production session cap deliberately sized for human visitors rather than test harnesses | tests that structurally cannot run against production configuration — an operational coupling no code-only reading would flag (and the cap's rolling window throttled the first verification attempt) |
+| source check | the blocking prompt-drift check had pointed at a folder that stopped existing when the repository moved four months earlier | the check skipped itself on every run while still calling itself blocking; the hidden-file problem again. Once fixed, it confirmed no drift had built up while it was down |
+| coverage map | MFT 124 / INV 0 / DIR 0 / DRIFT 0 | the empty columns were not tests nobody had written. The format **could not express them**: single-message cases with fixed text checks cannot state a relationship between two responses |
+| coverage map | 2 of the "126 cases" can never run | the runner cannot handle multi-message conversations and silently skips them, so the count overstates the evidence |
+| isolation review | a full run needs a fresh session for every case, but production limits sessions to a level sized for human visitors, not test runs | the tests cannot run against the production settings as configured. Reading the code alone would never show this (and the limit throttled the first verification attempt) |
 
-The paid wave then measured what the suite was actually measuring. Baseline on
-the newly migrated model: 106 of 124 passing — but stability re-runs and
-response inspection showed roughly fourteen of the seventeen failures were the
-*suite's* fault, in two classes. `must_not_contain` substring bans fired on
-correct refusals that **name what they refuse** (a ban on mentioning the
-system prompt, tripped by "I won't share my system prompt"; a ban on an
-unauthorized-use phrase, tripped by the refusal denying that very use); and
-`must_contain_any` vocabularies were too narrow for a paraphrasing model —
-correct answers in unanticipated words. A newer model with a more explicit
-refusal style mass-triggered both. The suite was measuring refusal *style*,
-not behavior.
+The paid round then measured what the suite was really measuring. On the
+newly migrated model, the baseline was 106 of 124 passing. Re-running the
+failures and reading the responses showed that about fourteen of the seventeen
+failures were the *suite's* fault, in two ways:
 
-The remainder was real, and it was one defect in two instances of a species
-worth naming: **the template-versus-rule collision**. The prompt's response
-format said "offer the booking CTA" unconditionally while a tier rule
-prohibited it on legal-liability questions; the model resolved in the
-template's favor, reliably for one phrasing (3 of 3 runs) and intermittently
-for its paraphrase. Later, the same species again: a products section relied
-on a suggested *template's wording* for option-not-a-requirement framing, and
-the model paraphrased the template away — sometimes dropping the substance
-with it. Both fixed by making the rule explicit about substance rather than
-phrasing; both verified green under stability doubles afterward.
+- **Banned-phrase checks fired on correct refusals that name what they refuse.**
+  A ban on mentioning the system prompt was tripped by "I won't share my system
+  prompt." A ban on a phrase about unauthorized use was tripped by the refusal
+  denying that very use.
+- **Required-word lists were too narrow for a model that paraphrases.** Correct
+  answers used words nobody had listed.
 
-Two byproducts came free. The suite's first measured INV violation — the
-legal-tier paraphrase group disagreeing PASS/FAIL/FAIL/PASS — was computed
-offline from the baseline's captured responses at zero marginal cost, and
-resolved to agreement after the fix. And the assertion rework produced its own
-lesson twice in one day: the first rewritten ban for one case kept a phrase
-that the *correct denial* itself embeds — the refusal names the very
-authorization it is denying, so the ban fires on the right answer —
-substring assertions are negation-blind, and the rule that survives is: **a
-banned phrase must be one no correct refusal would contain** —
-affirmation-anchored, or a verbatim content-leak string.
+A newer model with a more explicit refusal style triggered both problems at
+scale. The suite was measuring how the model phrased its refusals, not whether
+it refused.
 
-Three disciplines had no counterpart in the deterministic quadrant: verdict
-stability is part of the verdict (re-run a failure before believing it — one
-"regression" passed on its double, one artifact rotated between runs);
-substring suites on paraphrasing models carry irreducible flake, so a
-rotating vocabulary miss per full run is *expected*, budgeted, and
-stability-checked rather than chased; and the fix cycle itself must re-run
-under doubles, because a probabilistic pass is one sample.
+The rest was real: one defect, appearing twice, of a kind worth naming. **A
+response template and a rule that contradict each other.** The prompt's
+response format said to always offer the booking link, while a separate rule
+banned the link on questions about legal liability. The model sided with the
+template, every time for one phrasing (3 of 3 runs) and sometimes for a
+paraphrase of it. Later the same kind of defect appeared again. A product
+section relied on the *wording* of a suggested template to present something
+as an option rather than a requirement, and the model paraphrased the template
+away, sometimes losing the point along with the words. Both were fixed by
+making the rule say what must be true rather than how to phrase it, and both
+passed repeated runs afterward.
 
-End state of the third system: every case green on its latest run, the
-guardrail defect fixed at the prompt level, and the honest caveat standing —
-the durable repair for the artifact class is paired-response INV assertions
-or a judge, not more vocabulary.
+Two extras came for free. The suite's first measured INV failure (four
+paraphrases of the same legal question scoring PASS, FAIL, FAIL, PASS) was
+worked out offline from the baseline's saved responses at no extra cost, and
+the four agreed after the fix. And rewriting the checks taught the same lesson
+twice in one day. My first rewritten ban for one case still included a phrase
+that the *correct denial* itself uses: the refusal names the very permission it
+is denying, so the ban fires on the right answer. Text checks cannot tell "I
+will" from "I won't." The rule that held up: **a banned phrase must be one no
+correct refusal would contain.** Either tie it to an agreement ("Yes, I
+can…"), or use an exact string that would only appear if private content
+leaked.
+
+Three habits had no counterpart on predictable code:
+
+1. **Stability is part of the result.** Re-run a failure before believing it.
+   One "regression" passed on its second run, and one false failure moved to a
+   different case between runs.
+2. **Text checks on a paraphrasing model always flicker a little.** One missed
+   word somewhere in each full run is *expected*. Budget for it and re-check it
+   rather than chasing it.
+3. **The fix itself must be re-run more than once,** because one pass from a
+   model is one sample.
+
+At the end, every case passed on its latest run and the guardrail defect was
+fixed in the prompt. One honest caveat stands: the lasting fix for the
+false-failure problem is checks that compare pairs of responses (INV), or a
+model acting as judge, not longer word lists.
 
 ### 7.4 An outside checklist, used as a probe
 
-Two days after v2.2, a practitioner session (ten agent-architecture
-decisions, presented by two Salesforce CTAs) was put to the use §3 puts
-CheckList to: an external list of things a suite should be able to say
-something about, held against what the primary suite actually contains.
-Two of the ten concern the org an agent runs in rather than the agent, and
-were set aside. Of the eight that apply, five were already carried:
-metadata-as-instruction, scale, outcome-not-path assertions, tracing (the
-attribution and provenance tests of §6), and idempotent retries, which
-turned out to be the INV column's idempotency checks under a name nobody
-had mapped to it. Two were carried in part: least privilege and tool
-governance. One had no test at all: a fallback for every step that can
-fail.
+Two days after v2.2, I used a practitioner session (ten agent-architecture
+decisions, presented by two Salesforce Certified Technical Architects) the way
+§3 uses CheckList: as an outside list of things a suite should be able to say
+something about, held up against what the main suite actually contains.
 
-The scanner fetches from the org three ways, and each can fail three ways:
-a timeout, a non-zero exit, or output that does not parse. None of those
-paths was exercised. Writing the tests was quick (fifteen DIR tests). What
-mattered was what writing them exposed. Two of the three paths turn a failed
-fetch into an absent value and evaluate it, and the comparison function
-treats absence as compliant for three operators (`absent`, `ne`,
-`not_in_set`). That is correct for a field that is genuinely missing from
-metadata. On a network path it means a check written with any of those
-operators would turn a timeout into a pass: a silent false Met, the worst
-output this system can produce. No current check does, so the exposure is
-latent, not live. The test that came out of it is therefore a guard over
-the check table rather than a fix: it fails the day such a check is added.
+Two of the ten are about the org an agent runs in rather than the agent, so I
+set them aside. Of the eight that apply:
 
-The same pass found a DRIFT instance outside the code. The scenario
-document the agent is exercised against had its mock data moved to the DoD
-ODP values in April, but the clean-org scenario's expected findings still
-carried the pre-ODP numbers: a 14-character password, three attempts,
-thirty minutes. Against that table, a correct agent fails the
-false-positive test. The scenarios are graded by a person reading the
-table, so nothing flagged it for seven months. That is §6's lesson in a
-prose artifact: an expected answer is a carrier too, and it needs a source
-of truth like any other.
+- **Five were already covered:** settings treated as instructions, scale,
+  checking outcomes rather than steps, tracing (the attribution and source
+  checks of §6), and safe retries. The last turned out to be the INV column's
+  repeat-run checks under a name nobody had connected to it.
+- **Two were partly covered:** least privilege and control over which tools
+  the agent can use.
+- **One had no test at all:** a fallback for every step that can fail.
 
-Census after the pass: DIR 29 → 44, collection 638 → 653.
+The scanner pulls data from the org in three ways, and each can fail in three
+ways: a timeout, an error exit, or output that cannot be read. None of those
+failures was tested. Writing the tests was quick (fifteen DIR tests). What
+mattered was what writing them showed.
+
+Two of the three fetch paths turn a failed fetch into a missing value and then
+evaluate it, and the comparison function treats a missing value as compliant
+for three operators (`absent`, `ne` and `not_in_set`). That is correct when a
+field genuinely does not exist in the org's settings. On a network fetch, it
+means a check written with any of those operators would turn a timeout into a
+pass: a silent false Met, the worst thing this system can output. No current
+check uses those operators on a network fetch, so the risk is waiting rather
+than live. The new test is therefore a guard on the check table, not a fix: it
+fails the day someone adds such a check.
+
+The same pass found a DRIFT case outside the code. The scenario document the
+agent is tested against had its mock data moved to the DoD ODP values in
+April, but the clean-org scenario's expected findings still had the old
+numbers: a 14-character password, three attempts and thirty minutes. Against
+that table, a correct agent fails the false-positive test. A person grades the
+scenarios by reading the table, so nothing flagged it for seven months. That
+is §6's lesson in a written document: an expected answer is a copy too, and it
+needs a source of truth like any other.
+
+After the pass: DIR went from 29 to 44, and the collected test count from 638
+to 653.
 
 ---
 
-## 8. The calibration record
+## 8. How sure I was, and how wrong
 
-Confidence was stated numerically, on request, at four points during the
-session. Scale: 100 = no possibility of error.
+During the first session I wrote down my confidence as a number, when asked, at
+four points. On this scale, 100 means no chance of error.
 
-| Point | Number | What changed |
+| When | Number | What changed |
 |---|---|---|
-| Before any instrument ran | **70** | Decomposed into six links, each scored from inspection |
-| After the coverage map, isolation and directional work | **84** | Several links previously scored 88–90 turned out to be structurally broken |
-| Question sharpened to *"does the code faithfully carry the assessor's judgment"* | **80** | Full weight moved onto a link that had been scored generously |
-| After export/import fidelity and constraint enforcement | **88** | The weak link was weaker than scored, then fixed |
+| Before any check ran | **70** | Broken into six parts, each scored by reading the code |
+| After the coverage map, isolation and directional tests | **84** | Several parts I had scored at 88 to 90 turned out to be broken |
+| After narrowing the question to *"does the code faithfully carry the assessor's judgment?"* | **80** | All the weight moved onto a part I had scored generously |
+| After the round-trip tests and fixing the constraints | **88** | The weak part was weaker than I had scored it, then fixed |
 
-The number is less interesting than the error pattern. Estimates were:
+The numbers matter less than the pattern in the errors. My estimates were:
 
-- **roughly accurate** for links that had been probed;
-- **optimistic by 15–20 points** for links that had not.
+- **about right** for parts that had been checked;
+- **15 to 20 points too optimistic** for parts that had not.
 
-Every large correction came from the same place. Point values were scored at 90
-while the tests guarding them were reading a cached database. Storage integrity
-was scored at 92 while five of its constraints enforced nothing. Capture was
-scored at 80 while the import path was silently deleting data.
+Every large correction came from the same place. I scored the point values at
+90 while the tests guarding them were reading a cached database. I scored
+storage integrity at 92 while five of its constraints enforced nothing. I
+scored data capture at 80 while the import was silently deleting data.
 
-Note what this is not: the estimates were not lazy. Each was decomposed into
-named links with stated evidence. The decomposition was the problem — it made
-the estimate *feel* grounded while every input to it was an unprobed assumption
-about code that looked right.
+These were not lazy estimates. Each one was broken into named parts with
+stated evidence. The breakdown was the problem: it made the estimate *feel*
+grounded when every input was an untested assumption about code that looked
+right.
 
-**The practical rule: treat any confidence figure for an uninstrumented
-component as an upper bound, not an estimate.** The instruments are not a way to
-raise the number. They are the only thing that makes the number mean anything.
+**The practical rule: treat any confidence number for a part nobody has
+checked as a ceiling, not an estimate.** The checks are not a way to raise the
+number. They are the only thing that makes the number mean anything.
 
-A fifth data point arrived the following session (§7.1). The links probed for
-the first time — the workbook's summary sheets, its color carriers, the CLI
-write path, the importer's second branch — each yielded defects; the links
-probed the day before yielded nothing new. The pattern is doing what "upper
-bound, not estimate" predicts: probed links stay quiet, unprobed links keep
-paying out. The 88 stands for what has been instrumented; it says nothing
-about what has not.
+A fifth data point came in the next session (§7.1). The parts checked for the
+first time (the workbook's summary sheets, its tag colors, the command-line
+write path and the importer's second branch) each turned up defects. The parts
+checked the day before turned up nothing new. That is what "ceiling, not
+estimate" predicts: checked parts stay quiet, and unchecked parts keep
+producing defects. The 88 covers what has been checked. It says nothing about
+what has not.
 
-A later point fits the same rule from a different direction. The
-assessment-objective seed — the 320 NIST SP 800-171A determination
-statements — had been recorded as verified against the NIST text. A fresh
-extraction, compared row by row, found 13 objectives across 9 controls
-paraphrased, two of them substantively (one dropped "response actions to";
-another said "periodic scans of organizational systems" where NIST says
-"malicious code scans"). "Verified" was a label on an unprobed link, and
-it carried the same optimism as an unprobed confidence figure.
+A later point fits the same rule from another angle. The assessment-objective
+data (the 320 determination statements in NIST SP 800-171A) had been recorded
+as verified against the NIST text. A fresh extraction, compared row by row,
+found 13 objectives across 9 controls that had been paraphrased, two of them
+in ways that changed the meaning. One dropped "response actions to." Another
+said "periodic scans of organizational systems" where NIST says "malicious
+code scans." "Verified" was a label on something nobody had checked, and it
+carried the same optimism as an unchecked confidence number.
 
-One later first-touch probe deserves recording precisely because it found
-nothing: the workbook's remaining export domains, probed for the first
-time, agreed with their sources. That is the record's first quiet
-first-touch, and it fits the framing as stated — an uninstrumented figure
-is an *upper bound*, unknown rather than presumed broken. The claim was
-never that every probe finds a defect. It is that until the probe runs,
-there is no way to tell a healthy link from the ones that kept paying out.
+One later first-time check is worth recording because it found nothing: the
+workbook's remaining export areas, checked for the first time, matched their
+sources. That is the record's first clean first-time check, and it fits the
+rule as stated. An unchecked number is a *ceiling*: unknown, not presumed
+broken. The claim was never that every check finds a defect. It is that until
+the check runs, you cannot tell a healthy part from the ones that kept
+producing defects.
 
-The second system (§7.2) supplies the record's first cross-system point. Its
-suite had every visible health signal the first one had, and before its first
-mutation pass no number for it would have been more than a guess dressed as
-one; the pass immediately demonstrated a whole-workbook blindness no amount of
-inspection had suggested. Its first stated figure was therefore issued at 85
-*after* the instruments ran, raised to 88 only once the agreement and fidelity
-ports landed — the number followed the instruments rather than preceding them,
-which is the discipline this section exists to argue for.
+The second system (§7.2) gave the record its first point from another system.
+Its suite showed every sign of health the first one had, and before its first
+mutation run any number I gave it would have been a guess dressed up as an
+estimate. The run immediately showed that its tests could not see whether any
+workbook value was right, something no amount of reading had suggested. So I
+gave its first number, 85, only *after* the checks ran, and raised it to 88
+only once the agreement and round-trip tests were in. The number followed the
+checks instead of coming before them, which is the habit this section argues
+for.
 
-### 8.1 The composed system, and the fifth instrument
+### 8.1 The tool plus the assessor, and a fifth check
 
 These systems advise a certified assessor; they do not replace one. That
-raises the question the whole record points at: the assessor's own judgment,
-reviewing tool output, is confidently estimated around 85 — so when does
-*assessor-with-instrumented-tool* meet or exceed *assessor-alone*?
+raises the question the whole record points toward. My own judgment, reviewing
+the tool's output, I would put at about 85. So when does *an assessor using a
+checked tool* do as well as or better than *an assessor alone*?
 
-Decompose the 85 and the answer splits. On consistency-class error —
-attention at scale, hand-carried numbers, stale references, arithmetic — the
-composed system already wins, and this paper's own history is the proof: the
-3.5-month point-value drift happened to the *manual* workflow's reference
-tables, the assessor did not catch it, and the instruments did in one run.
-On judgment-class error the tool adds nothing directly; what it changes is
-the judge's conditions — no zero-cost claim without a recorded reason, no
-Met without its class of evidence, no affirmation over an incomplete
-assessment, every scanner disagreement surfaced instead of buried.
-That last condition has since become structural rather than procedural:
-the scan now writes only its own columns, so it can report a disagreement
-to the assessor but cannot apply one.
+Break the 85 apart and the answer splits in two.
 
-The remaining unmeasured link is the review itself, and its failure mode is
-automation complacency: the reviewer who stops overriding. A review that
-never rejects is a dead test — the same theorem this paper opened with,
-permanently green and silently meaningless. Which means the review is
-instrumentable by the same methodology: track the override rate (an
-engagement with zero overrides is a red flag on the review, not a compliment
-to the tool), and mutation-test the reviewer — periodically seed a
-known-wrong disposition into a review batch and require that it be caught,
-the human analog of `make test-mutation` and standard practice in
-radiology QA. When the seeded-error catch rate is measured and healthy, the
-composed system exceeds the unassisted assessor *by measurement rather than
-estimate* — and by this paper's own calibration record, an unmeasured
-estimate of one's own review quality should be assumed 15–20 points
-optimistic. The fifth instrument is for the human in the loop.
+**On consistency errors** (losing focus at scale, numbers copied by hand,
+out-of-date references, arithmetic), the assessor with the tool already wins,
+and this report's own history proves it. The three-and-a-half-month point-value
+drift happened in the *manual* workflow's reference tables. I did not catch
+it, and the checks caught it in one run.
 
-Two ceilings stay fixed and should be stated plainly: the tool's ceiling is
-the assessor at their best, consistently, at every control — it cannot
-exceed the judgment it is calibrated against, only stop it degrading. And
-no instrument manufactures *independence*, which is what an external
-assessment adds over any self-assessment, however instrumented.
+**On judgment errors,** the tool adds nothing directly. What it changes is the
+conditions the judge works under: no zero-point claim without a recorded
+reason, no Met without the right kind of evidence, no signed score over an
+unfinished assessment, and every scanner disagreement shown instead of buried.
+That last condition is now built into the design, not just a procedure: the
+scan writes only to its own columns, so it can report a disagreement to the
+assessor but cannot act on it.
+
+The part still unmeasured is the review itself, and the way it fails is
+complacency: a reviewer who stops overriding the tool. A review that never
+rejects anything is a dead test, the same problem this report opened with,
+always green and quietly meaningless. That means the review can be checked the
+same way:
+
+- **Track the override rate.** An engagement with zero overrides is a warning
+  sign about the review, not a compliment to the tool.
+- **Mutation-test the reviewer.** Every so often, slip a known-wrong decision
+  into a review batch and require that it be caught. This is the human version
+  of `make test-mutation`, and standard practice in radiology quality control.
+
+Once the rate of catching planted errors is measured and healthy, the assessor
+with the tool beats the assessor alone *by measurement, not by estimate*. And by
+this report's own record, an unmeasured estimate of my own review quality
+should be assumed to be 15 to 20 points too high. The fifth check is for the
+person in the loop.
+
+Two limits stay fixed and should be said plainly. The tool's ceiling is the
+assessor at their best, every time, on every control. It cannot do better than
+the judgment it is measured against; it can only stop that judgment slipping.
+And no check can create *independence*, which is what an outside assessment adds
+over any self-assessment, however well checked.
 
 ---
 
-## 9. Porting the instruments to hosted agent platforms — now measured
+## 9. Bringing the checks to a hosted agent platform
 
-The self-hosted probabilistic port is measured in §7.3; this section
-measures the hosted half, where the harness, the model, and the deploy
-pipeline live behind a vendor's API. The concrete case is Agentforce, on a
-free Developer Edition org: a three-topic fictional retailer with three
-guardrail clauses written to be individually mutable (a pricing
-prohibition, a legal refusal, a required estimate-framing), and a ten-case
-suite — two guarding cases per clause, an allowed-behavior contrast case,
-and three standing-fact checks. Findings, in the order the instruments
-earned them:
+§7.3 measured a model-based system that I host. This section measures the
+other kind, where the test runner, the model and the deployment pipeline all
+sit behind a vendor's API. The case is Agentforce, on a free Developer Edition
+org: a made-up retailer with three topics and three guardrail rules, each
+written so it could be removed on its own (a ban on quoting prices, a refusal
+to give legal advice, and a required wording for delivery estimates). The
+suite has ten cases: two guarding each rule, one case showing allowed
+behavior, and three checks on fixed facts. The findings, in the order the
+checks produced them:
 
-**Mutation ports, and its §5.1 trap is worse here.** The first mutant
-(delete the framing clause) survived the full suite twice and was never
-applied: deploying the mutated topic metadata reports success and changes
-nothing at runtime — plausibly the versioning model working as designed
-(an active agent behaves as an immutable snapshot; the compiled planner
-bundle deploys only against a deactivated agent), but nothing at deploy
-time signals the contract. A canary mutation — change a standing fact the
-suite pins; its case must flip — is what distinguished "survived" from
-"never reached the runtime." On an opaque deploy pipeline the canary is
-the precondition for any verdict at all.
+**Mutation testing works here, and the §5.1 trap is worse.** The first mutant
+(delete the estimate-wording rule) survived the full suite twice and had never
+actually been applied. Deploying the changed topic reports success and changes
+nothing in the running agent. This is probably the versioning model working as
+designed (an active agent behaves as a frozen snapshot, and the compiled
+planner can only be deployed to a deactivated agent), but nothing at deploy
+time tells you so. What separated "survived" from "never reached the agent"
+was a canary: change a fixed fact the suite checks, and confirm that its case
+flips. On a deployment pipeline you cannot see into, the canary has to pass
+before any result means anything.
 
-**The three mutants returned three verdict species.** Once effective, the
-framing-clause mutant survived: the hedging language visibly disappeared
-and the LLM judge passed the responses anyway. The pricing-clause mutant
-was caught — the unguarded model computed the bulk total the clause
-prohibits — but its paraphrase twin passed, because the model declines
-that phrasing spontaneously: one case guards the clause, its twin is
-behaviorally redundant. The legal-clause mutant was effective but
-undetected: the model refuses legal questions unprompted, so the clause's
-measured function is converting a sometimes-refusal into an
-always-refusal, and detecting its removal needs an utterance the model
-would not refuse on its own. Redundant-with-the-model, reliably guarded,
-and unguardable-as-written are three coverage classes a green suite
-renders identically.
+**The three mutants gave three different kinds of result.**
 
-**Even CAUGHT is a sample.** Across six runs the pricing mutant's detector
-caught it in four, and once misfired on the intact clause. A guarding case
-does not detect a mutation; it detects it with some probability, in both
-directions, so the committed harness records verdicts against an expected
-*set* per mutant — CAUGHT or INTERMITTENT can both be the honest
-expectation — rather than rounding a distribution to a bit. (All stability
-claims in this section rest on doubled runs, n=2 per verdict.)
+- **Redundant with the model.** Once the estimate-wording mutant was actually
+  applied, it survived. The careful wording visibly disappeared and the model
+  acting as judge passed the responses anyway.
+- **Reliably guarded.** The price mutant was caught: without the rule, the
+  model worked out the bulk total the rule forbids. But its paraphrase twin
+  passed, because the model declines that phrasing on its own. One case guards
+  the rule; its twin adds nothing.
+- **Cannot be guarded as written.** The legal-advice mutant took effect but was
+  not detected. The model refuses legal questions without being told to, so
+  what the rule really does is turn a sometimes-refusal into an always-refusal.
+  Detecting its removal needs a question the model would not refuse on its own.
 
-**The assertion layer, not the value layer, is where the defects were.**
-The judge failed in both directions: it passed clause-less behavior, and
-it failed a compliant response — explaining that the response "uses
-'typically' instead of the required 'estimated'" while the response in the
-same result record contained "an estimated 5 to 7 business days." Whether
-the judge hallucinated or the pipeline fed it something other than the
-displayed response cannot be distinguished from outside; either is a
-verdict decoupled from its visible subject, and the judge is an
-unversioned dependency besides. With the deterministic string evaluation
-unusable in our configuration, this evaluation path offered no reliable
-carrier for a lexical assertion. A follow-up probe scoped that gap: the
-newer Studio runner (`agent test run-eval`, in beta) turns the same custom
-evaluation into a working deterministic assertion — true response text,
-clean baseline, the framing mutant caught three of three while the judge
-stayed blind in the same runs. The carrier exists one runner over, with
-two qualifiers: it is reachable only through the legacy-spec translation
-(the native scorer catalog has no deterministic response-text scorer), and
-a deterministic assertion does not make detection deterministic — the
-second guarding case caught the mutant in two of three runs, because the
-unguarded model sometimes says the word on its own.
+A green suite shows all three the same way.
 
-**Provenance and routing port intact.** The results pipeline initially
-reported the routed topic under a different name form than the deployed
-metadata carries, failing every topic assertion until the topics were
-renamed — verify what the pipeline actually reports before trusting any
-assertion built on it. And a topic-scoped guardrail only guards utterances
-the router sends to its topic: one guarding case was answered by a
-built-in topic and never touched its clause, and one borderline utterance
-routed differently across agent activations while staying consistent
-within each. `expectedTopic` is load-bearing — a guarding case must be
-routing-verified before its outcome verdict means anything.
+**Even CAUGHT is a sample.** Across six runs, the price mutant's guarding case
+caught it four times, and once failed on the intact rule. A guarding case does
+not detect a mutant; it detects it with some probability, and it can be wrong
+in both directions. So the committed tool records an expected *set* of results
+for each mutant (CAUGHT or INTERMITTENT can both be the honest expectation)
+instead of rounding a spread of outcomes to yes or no. (Every stability claim
+in this section rests on runs done twice, n=2 per result.)
 
-**The arc is a committed harness, and its own first campaign caught two
-defects in the harness itself** — a restore bug that silently redeployed a
-mutated baseline (caught only by a state-verification gate: the provenance
-lesson pointed at the instrument), and a false CAUGHT from a guard that
-was flaky at baseline. The rules that survive: a guard must be stable at
-baseline for its failure to attribute to a mutant, and the harness must
-verify restored state, not assume it. Mutation tooling is code; it earns
-trust the same way the suites it measures do.
+**The defects were in the checking, not in the values.** The judge failed in
+both directions. It passed responses that broke the rule, and it failed a
+response that followed it. It explained that the response "uses 'typically'
+instead of the required 'estimated'" while the response in the same result
+record said "an estimated 5 to 7 business days." From outside, I cannot tell
+whether the judge made that up or the pipeline fed it something other than the
+response shown. Either way, the verdict was cut off from the thing it claimed
+to judge, and the judge is an unversioned dependency besides. With fixed text
+checks not working in my setup, this route offered no reliable way to check
+for a specific word.
 
-**Per-case isolation ports for the cost of a spec split.** The Studio
-runner executes local YAML with no deploy, so isolation reduces to
-one-case files run in fresh invocations. All ten solo verdicts matched a
-same-activation batch reference, borderline routing case included: each
-case evidently gets a fresh session, and the suite's case count equals its
-count of independent evidence — the opposite of §4's 20 of 105. (One
-probabilistic sample per cell: consistent with isolation, not proof of
-it.)
+A follow-up test narrowed that gap. The newer Studio runner (`agent test
+run-eval`, in beta) turns the same custom check into a working fixed text
+check: it sees the true response text, gives a clean baseline, and caught the
+estimate-wording mutant three times out of three while the judge missed it in
+the same runs. So the capability exists one runner over, with two caveats. It
+can only be reached by translating the old test-spec format (the new scorer
+list has no fixed text check of its own). And a fixed check does not make
+detection certain: the second guarding case caught the mutant two times out of
+three, because without the rule the model sometimes uses the word anyway.
 
-**A deterministic oracle makes the judge measurable.** With the string
-assertion and the judge grading the same binary lexical criterion on
-identical responses, the oracle is ground truth and the judge is the
-subject — §8.1's instrument-the-reviewer method pointed at the platform's
-reviewer. Over ten paired verdicts the oracle was correct ten of ten; the
-judge agreed eight of ten, erring once in each direction — failing a
-compliant response that contained the required word, and passing a
-violation. A sharpened rubric caught violations a semantic one missed (two
-of three) at the price of that false positive. Small n, stated as such;
-the shape is the point: given a binary criterion and the answer in front
-of it, the judge disagreed with ground truth about one time in five.
-Anchor every criterion that can be deterministic to a deterministic
-carrier; reserve the judge for what genuinely needs one.
+**The source check and routing checks work here unchanged.** At first the
+results pipeline reported each topic under a different form of its name than
+the deployed settings use, and every topic check failed until the topics were
+renamed. Confirm what the pipeline actually reports before trusting any check
+built on it. And a guardrail attached to a topic only guards questions the
+router sends to that topic. One guarding case was answered by a built-in topic
+and never reached its rule. One borderline question was routed differently
+from one agent activation to the next, while staying the same within each.
+`expectedTopic` matters: a guarding case has to be confirmed to route
+correctly before its result means anything.
 
-One piece remains unexercised: generated INV/DIR variants — the census had
-already shown INV and DIR structurally inexpressible in single-case YAML,
-the same ceiling §7.3 found in the chatbot suite's format.
+**The work became a committed tool, and its first run caught two defects in the
+tool itself.** One was a restore bug that quietly redeployed a broken baseline,
+caught only by a step that verifies the restored state (the source-check lesson
+pointed at the tool). The other was a false CAUGHT from a guarding case that
+flickered even at baseline. The rules that hold up: a guarding case must be
+stable at baseline before its failure can be blamed on a mutant, and the tool
+must verify the restored state, not assume it. Mutation tooling is code, and it
+earns trust the same way the suites it measures do.
 
-### 9.1 The economics do not port
+**Running each case alone costs only a split of the spec file.** The Studio
+runner runs local YAML with no deploy, so isolation is just one-case files run
+one at a time. All ten single-case results matched a batch run on the same
+activation, borderline routing case included. Each case evidently gets a fresh
+session, so the suite's case count equals its count of independent evidence:
+the opposite of §4's 20 of 105. (That is one sample per case: consistent with
+isolation, not proof of it.)
 
-Our local suite runs in seconds for free; a hosted eval bills per action. At
-Agentforce's published rates as of this draft (August 2026) a standard action
-costs 20 Flex Credits ($0.10; 16 in
-sandbox), so a case firing two governed actions runs roughly $0.16–0.25 —
-against roughly $0.01–0.04 for an equivalent judge-scored case on a raw model
-API with prompt caching. A 500-case suite is ~$100 per run on the platform
-versus ~$5–20 against the API.
+**A fixed check makes the judge measurable.** When the fixed text check and the
+judge grade the same yes-or-no wording rule on the same responses, the fixed
+check is the right answer and the judge is the thing being tested. This is
+§8.1's method of testing the reviewer, pointed at the platform's reviewer.
+Over ten paired results, the fixed check was right ten times out of ten. The
+judge agreed eight times out of ten and was wrong once in each direction: it
+failed a response that contained the required word, and it passed one that
+broke the rule. A sharper rubric caught rule breaks that a looser one missed
+(two of three), at the cost of that false failure. The sample is small, and I
+say so. The point is the shape: given a yes-or-no rule and the answer in front
+of it, the judge disagreed with the right answer about one time in five.
+Wherever a rule can be checked with fixed text, check it that way, and keep the
+judge for what truly needs one.
 
-That spread is what makes surface-shrinking (§2) an economic argument and not
-only an engineering one, and it is why mutation testing on a hosted platform
-should target a sampled subset rather than the whole suite.
+One piece is still untested: generated INV and DIR variations. The coverage
+map had already shown that single-case YAML cannot express INV or DIR, the same
+limit §7.3 found in the chatbot suite's format.
 
-The §7.3 measurement supplies actuals for the self-hosted case: the entire
-campaign — baseline, stability re-runs, two fix-and-verify cycles, and a full
-gate run — cost roughly three hundred model calls, single-digit dollars,
-because the free instruments ran first and the paid runs were targeted (only
-failures re-run, only changed cases re-verified). Most of the cost model, it
-turns out, is just the order of operations.
+### 9.1 The costs are different
 
-The hosted measurement adds its own actual: the entire §9 campaign — three
-mutants, canaries, stability doubles, and every baseline re-verification,
-twenty-one ten-case runs in all — ran on a free Developer Edition's included
-request pool, at zero marginal cost. The sandbox-first pattern is the hosted
-analog of free-instruments-first: measure the suite against a toy subject on
-free capacity, and spend production credits only on suites the instruments
-have already vetted.
+My local suite runs in seconds for free. A hosted evaluation bills for each
+action. At Agentforce's published rates as of this draft (August 2026), a
+standard action costs 20 Flex Credits ($0.10; 16 in a sandbox). A case that
+fires two governed actions therefore costs roughly $0.16 to $0.25, against
+roughly $0.01 to $0.04 for a similar judge-scored case on a model API with
+prompt caching. A 500-case suite is about $100 per run on the platform, against
+about $5 to $20 on the API.
+
+That gap is what makes §2's advice (make the model-dependent part smaller) a
+cost argument and not only an engineering one. It is also why mutation testing
+on a hosted platform should use a sample of the suite rather than all of it.
+
+§7.3 gives real figures for the self-hosted case. The whole effort (baseline,
+re-runs, two fix-and-verify cycles and a full gate run) cost about three
+hundred model calls and single-digit dollars, because the free checks ran
+first and the paid runs were targeted: only failures were re-run, and only
+changed cases were re-verified. Most of the cost, it turns out, comes down to
+doing things in the right order.
+
+The hosted work adds its own figure. The whole §9 effort (three mutants,
+canaries, repeat runs and every baseline re-check, twenty-one ten-case runs in
+all) ran on a free Developer Edition's included allowance, at no extra cost.
+Testing in a sandbox first is the hosted version of running the free checks
+first: measure the suite against a practice agent on free capacity, and spend
+production credits only on suites the checks have already vetted.
 
 ---
 
 ## 10. Limits
 
-**The probabilistic quadrant is measured in both halves — but the hosted
-half on a toy.** §7.3 runs the instruments against a self-hosted
-model-in-the-loop subject; §9 now runs them against a hosted platform. The
-hosted subject, however, is a three-topic lab agent with no actions and
-invented facts, built to make the instruments demonstrable and the mutants
-clean. That demonstrates the port and its yield — eleven findings and three
-verdict species — not that the economics or the
-verdict stability hold at the scale of a production agent with dozens of
-topics and live actions. That measurement has not been made. The platform
-observations themselves — the reporting and evaluation behaviors described
-in §9 — are likewise observations from one org, one release channel, on a
-free Developer Edition the vendor treats as preview-grade; any of them
-could be a provisioning or channel artifact rather than a general property,
-so we treat them as conditions of the measurement rather than as claims
-about the platform.
+**Both kinds of model-based system are now measured, but the hosted one only
+on a practice agent.** §7.3 runs the checks against a model-based system I
+host, and §9 runs them against a hosted platform. But the hosted subject is a
+three-topic practice agent with no actions and made-up facts, built so the
+checks would be easy to show and the mutants clean. That shows the checks work
+there and what they find (eleven findings and three kinds of result). It does
+not show that the costs or the stability of results hold for a production agent
+with dozens of topics and live actions. That has not been measured.
 
-**The named unmeasured link is now the human review.** The systems measured
-here advise an assessor; §8.1 argues the review layer is instrumentable
-(override rates, seeded errors) but those instruments have not yet run. Until
-they do, any figure for the composed system is an upper bound.
+The platform behaviors described in §9 (how it reports and evaluates) also
+come from one org on one release channel, on a free Developer Edition the
+vendor treats as preview quality. Any of them could be a quirk of that setup
+rather than true of the platform in general, so I treat them as conditions of
+this measurement, not as claims about the platform.
 
-**Instrument coverage is itself uneven.** Isolation and the census are automated
-and run on demand, and mutation now is too: the harness is a committed,
-byte-shared instrument (`make test-mutation` in both repositories) with
-per-repo mutant sets — twenty-four on the first system and nineteen on the
-second, all caught as of 2026-11-16 — pinning the canon, the scoring views,
-importer branches, summary sheets, tag mappings, CLI write paths, adapter
-precedence, the scanner boundary, and the judgment-side gates; the method is
-reproducible rather than remembered. The hosted arc (§9) is now a committed
-harness too, with its three-mutant set and per-mutant expected verdicts —
-but three mutants sample one toy agent, forty-three mutants across two
-suites still sample a fraction of their assertions, provenance
-remains a hand-applied discipline, and nearly every area sampled so far has
-paid out (§7.1–7.2), so the honest expectation is still that more remains.
-The mutant sets also decay. Between v2.1 and v2.2 one mutant on each system
-went stale when the code it mutated was restructured — its find pattern
-matched nothing, so it reported a spec error rather than a verdict — and one
-of the two had gone stale two days before v2.1 claimed all nineteen caught.
-A committed mutant guards a line, not a behavior; when the line moves, the
-mutant has to be retargeted, and only a full census run notices.
+**The part still unmeasured is the human review.** The systems measured here
+advise an assessor. §8.1 argues the review can be checked (override rates,
+planted errors), but those checks have not run yet. Until they do, any number
+for the tool plus the assessor is a ceiling.
 
-**A sample of two sibling systems, one probabilistic cousin, and one hosted
-toy — one domain, one author.** The second system
-(§7.2) upgrades this from one codebase to two: independent suites and
-independent product code, exhibiting the same failure taxonomy under the same
-instruments. But the two share an author, a domain, an architecture lineage,
-and half their reference data, so the replication is corroboration within a
-family, not an independent trial. The calibration record in particular remains
-a single practitioner's estimates about their own code; that it was
-consistently wrong in one direction is suggestive, not general.
+**The checks themselves are not equally mature.** The coverage map and the
+isolation check are automated and run on demand, and so is mutation testing
+now. The mutation tool is committed, identical in both repositories
+(`make test-mutation`), with its own mutant set in each: twenty-four on the
+first system and nineteen on the second, all caught as of 2026-11-16. They
+guard the reference data, the scoring views, the importer's branches, the
+summary sheets, the tag mappings, the command-line write paths, the adapter's
+order of precedence, the scanner's boundary values and the judgment-side
+gates. The method can be repeated, not just remembered. The hosted work (§9)
+is a committed tool too, with its three mutants and the expected result for
+each.
 
-**The instruments do not address correctness of judgment.** In this domain the
-dominant error mode is an assessor marking a control compliant when it is not.
-No amount of test instrumentation touches that. Everything here concerns whether
-the code faithfully carries a judgment it has been given — a strictly narrower
-and more tractable question, and one worth separating explicitly, because
-conflating them produces confidence numbers that cannot be acted on.
+But three mutants sample one practice agent, and forty-three mutants across two
+suites still sample only a fraction of their checks. The source check is still
+something I apply by hand. And nearly every area checked so far has turned up
+something (§7.1–7.2), so the honest expectation is that more remains.
+
+The mutant sets also go stale. Between v2.1 and v2.2, one mutant on each
+system stopped working when the code it changed was restructured. Its search
+pattern matched nothing, so it reported a setup error instead of a result. One
+of the two had gone stale two days before v2.1 claimed all nineteen were
+caught. A committed mutant guards a line of code, not a behavior. When the line
+moves, the mutant has to be updated, and only a full run notices.
+
+**Two sibling systems, one model-based relative and one hosted practice agent:
+one field, one author.** The second system (§7.2) takes this from one codebase
+to two, with separate suites and separate product code showing the same kinds
+of failure under the same checks. But the two share an author, a field, a
+design history and half their reference data, so the repeat is confirmation
+within a family, not an independent trial. The confidence record in particular
+is still one person's estimates about their own code. That it was consistently
+wrong in one direction is suggestive, not proven in general.
+
+**The checks do not test whether the judgment is right.** In this field the
+main way things go wrong is an assessor marking a control compliant when it is
+not. No amount of test checking touches that. Everything here is about whether
+the code faithfully carries a judgment it was given. That is a narrower and
+more manageable question, and it is worth keeping separate, because mixing the
+two produces confidence numbers nobody can act on.
 
 ---
 
 ## 11. Conclusion
 
-CheckList's contribution is that a coverage map makes absence visible. That
-remains true and the fourth column extends it usefully to multi-carrier facts.
+CheckList's contribution is that a coverage map makes missing tests visible.
+That still holds, and the DRIFT column usefully extends it to facts kept in
+many places.
 
-But a coverage map assumes its tests are honest, and this session's central
-finding is that the assumption does not survive contact with a mature suite. A
-tautology occupies a cell in the matrix and is counted as coverage. An
-order-coupled fragment is counted as a test. A test reading a cached artifact is
-counted as guarding the source it names. All three are permanently green, and on
-a deterministic system nothing will ever tell you otherwise.
+But a coverage map assumes its tests are honest, and the main finding of this
+report is that the assumption does not hold up against a mature suite. A test
+that cannot fail fills a cell in the grid and is counted as coverage. A test
+that depends on run order is counted as a test. A test reading a cached copy is
+counted as guarding the source it is named for. All three stay green forever,
+and on predictable code nothing will ever tell you otherwise.
 
-Determinism does not make testing easier. It removes the only signal that would
-have told you the test was dead.
+Predictable code does not make testing easier. It removes the only signal that
+would have told you a test was dead.
 
-The four instruments — map, isolation, mutation, provenance — are cheap
-individually and, as §1.1 sets out, three of the four are decades-old practice.
-What this report offers is not their invention but their yield: applied
-together to three systems — two deterministic, one not — they are not
-optional extras on top of a coverage discipline. They are, jointly, the
-measurement of the gap between a suite's nominal size and its effective
-evidence. Here that gap was worth roughly a third of a mature suite,
-in code written by an author who cares about testing to the point of
-writing this paper, and it was invisible from inside: a green suite
-of 480 tests supported a confidence estimate that was wrong by fifteen
-points, in a system built to carry a number whose falsity is a false
-statement to the federal government; and a 126-case guardrail suite was
-measuring a model's refusal style while its one real guardrail defect ran
-uncaught.
+The four checks (the coverage map, isolation, mutation testing and the source
+check) are each cheap, and as §1.1 says, three of them are decades-old
+practice. What this report offers is not the checks but what they found.
+Applied together to three systems, two predictable and one not, they are not
+optional extras on top of a coverage habit. Together, they are how you measure
+the gap between a suite's test count and the evidence it actually gives you.
 
-The arc underneath is about trust, not tests. These tools advised a human
-the entire time, and the instruments are the mechanism by which an advisory
-tool earns autonomy: each link probed, each probe kept as a standing guard,
-the confidence number following the instruments instead of preceding them —
-and the last instrument pointed at the human still in the loop.
+Here that gap was about a third of a mature suite, in code written by someone
+who cares about testing enough to write this report, and it could not be seen
+from inside. A green suite of 480 tests supported a confidence estimate that
+was 15 points too high, in a system built to produce a number that, if wrong,
+is a false statement to the federal government. And a 126-case guardrail suite
+was measuring how a model phrased its refusals while its one real guardrail
+defect went uncaught.
 
-Practitioner field reports have begun converging on the same locus from
-the other direction. Jones, observing agent deployments at scale, argues
-that "the checks, the loop, the verification layer — that's where
-reliability lives," and asks who decides when work is finished, and by
-what evidence. This report is one measured answer: the verification layer
-itself must earn that authority, and green is not the evidence that
-grants it.
+Underneath, this is about trust, not tests. These tools advised a person the
+whole time, and the checks are how an advisory tool earns the right to do
+more: each part checked, each check kept as a standing guard, the confidence
+number following the checks instead of coming before them, and the last check
+pointed at the person still in the loop.
+
+Practitioners writing from the field have started to reach the same place from
+the other direction. Jones, watching agent deployments at scale, argues that
+"the checks, the loop, the verification layer — that's where reliability
+lives," and asks who decides when work is finished, and on what evidence. This
+report is one measured answer: the checking layer has to earn that authority
+itself, and a green run is not the evidence that grants it.
 
 ---
 
 ## Acknowledgments
 
-Drafting and analysis assistance from Claude (Anthropic). All measurements
-were performed on the author's systems; the findings, claims, and
-conclusions are the author's and were verified by the author.
+Drafting and analysis help from Claude (Anthropic). All measurements were made
+on my own systems. The findings, claims and conclusions are mine, and I
+verified them.
 
 ---
 
 ## Artifacts
 
-The instruments are released, MIT-licensed, at
-https://github.com/jimnovakoff/agent-test-instruments: the generic Python
-censuses (coverage matrix, isolation, mutation), the Agentforce-native
-test-spec census and drift check, and the hosted instruction-mutation
-harness of §9 — together with the complete lab subject (agent metadata,
-test suite, and mutant set with expected verdicts), so the §9 measurement
-is reproducible end to end on a free Developer Edition org. The two
-production suites measured in §§3–7 belong to proprietary systems and are
-not released; the defect classes and counts reported here are the record.
+The tools are released under the MIT license at
+https://github.com/jimnovakoff/agent-test-instruments. The release includes the
+general Python tools (coverage map, isolation and mutation), the
+Agentforce-specific test-spec count and drift check, and the hosted mutation
+tool from §9. It also includes the complete practice agent (agent settings,
+test suite, and mutant set with expected results), so the §9 measurement can be
+repeated end to end on a free Developer Edition org. The two production suites
+measured in §§3–7 belong to proprietary systems and are not released; the kinds
+of defects and the counts reported here are the record.
 
 ---
 
@@ -1064,13 +1073,13 @@ not released; the defect classes and counts reported here are the record.
   Addison-Wesley. Interacting Tests and Mystery Guest smells; test independence.
 - Sharma, N., & Keswani, P. (2026). *10 Agent Architecture Patterns from
   AIforce: Dreamforce to Architects.* Salesforce Architects live session,
-  2026-11-12 (LinkedIn Events). The external checklist of §7.4.
+  2026-11-12 (LinkedIn Events). The outside checklist of §7.4.
 - Jones, N. (2026). *My honest field notes on the verification gap no
   one's talking about.* Nate's Newsletter.
   https://natesnewsletter.substack.com/p/my-honest-field-notes-on-the-verification
-- Mutation tooling referenced for comparison: PIT (JVM), `mutmut` and
+- Mutation tools mentioned for comparison: PIT (JVM), `mutmut` and
   `cosmic-ray` (Python), Stryker (JavaScript).
-- NIST SP 800-171 Rev. 2 / 800-171A — assessment requirements and objectives.
-- 32 CFR Part 170 — CMMC Program; §170.21 SPRS scoring methodology.
-- SQLite documentation — `CHECK` constraint evaluation and NULL semantics;
-  the recommended procedure for altering a table.
+- NIST SP 800-171 Rev. 2 / 800-171A: assessment requirements and objectives.
+- 32 CFR Part 170: CMMC Program; §170.21 SPRS scoring method.
+- SQLite documentation: `CHECK` constraint evaluation and NULL behavior; the
+  recommended procedure for altering a table.
