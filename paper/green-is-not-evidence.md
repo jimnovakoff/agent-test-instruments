@@ -1,11 +1,11 @@
 # Green Is Not Evidence: Who Is Testing the Tests?
 
-**A field report: what a mature, passing test suite was hiding, and the four
+**A field report: what a passing 480-test suite was hiding, and the four
 checks that found it**
 
 *Systems studied: a pair of CMMC Level 2 assessment tools and their guarded chatbot*
 
-*James Novakoff, CMMCSecureCloud LLC, v2.4, 2026-11-19*
+*James Novakoff, CMMCSecureCloud LLC, v2.5, 2026-11-19*
 
 ---
 
@@ -15,12 +15,14 @@ A test run tells you two things: which tests exist, and whether they pass. It
 does not tell you whether those tests would fail if the code broke. Most teams
 assume they would.
 
-On a system with an AI model in it, a broken test usually shows itself sooner
-or later: results flicker between runs, and someone notices. On ordinary,
-predictable code that never happens. A test that checks nothing stays green
-forever, and nothing will ever tell you.
+A test that checks nothing stays green forever, and nothing will ever tell
+you. That is true whether or not the system has an AI model in it. A model
+makes some tests flicker between runs, which exposes unstable tests. It does
+not expose a test that cannot fail.
 
-This report covers four checks I built while hardening a CMMC Level 2
+This report asks whether an assessment tool built with the tools now
+available, language models included, can be trusted, and what it takes to find
+out. It covers four checks I built while hardening a CMMC Level 2
 assessment tool. The tool scores a defense contractor's Salesforce org against
 the 110 NIST SP 800-171 controls and keeps the crosswalk an assessment depends
 on. If it is wrong, a wrong score can end up in a federal database under an
@@ -40,11 +42,14 @@ I ran them against 480 tests that all passed. They found fifteen defects: nine
 in the product and six in the tests themselves. Several had been there since
 the first commit.
 
-One fact matters throughout. During this whole period the tool advised a
-certified assessor; it never replaced one. Every number a client saw went
-through a person first, so these defects were found while they were still
-harmless. Checks like these are how an advisory tool earns the right to do
-more on its own. §8.1 comes back to that.
+One fact matters throughout. The tool has only been used to prepare for
+assessments, never to conduct one. Every claim it helped produce was either
+checked by me or would be re-examined by an outside assessor who does not use
+this tool. No client filed a score based on numbers the tool generated. The
+defects that touched the tool's own records (audit rows,
+attribution, imported notes) never left it. So these defects were found before
+they could reach anyone, though not because my own review would have caught
+them: §8.1 shows where it did not.
 
 I also ran the same four checks against a third system: our public chatbot, a
 language model behind a large system prompt, with 126 test cases. They showed
@@ -52,22 +57,23 @@ that the tests were measuring how the model phrased its refusals, not whether
 it refused. They also found one real guardrail defect, and a check that had
 been dead for four months while still reporting itself as blocking (§7.3).
 
-The report ends with a record of my own confidence estimates. Before each check
-ran, I wrote down how sure I was. On parts of the system no check had touched,
-I was too optimistic by 15 to 20 points. On parts that had been checked, I was
-about right. That gap is the argument for running checks instead of trusting
-judgment.
+The report ends with a record of my own confidence estimates, written down at
+four points during the first session. Three parts of the system that I had
+scored between 80 and 92 turned out to be broken, and each was a part no check
+had touched. On parts that had been checked, later checks found nothing new.
+That gap is the argument for running checks instead of trusting judgment.
 
 The common thread: every test suite has two sizes. One is the number of tests.
 The other is how much real, independent evidence those tests give you. Every
 defect in this report is a way the first number overstates the second without
-showing it. Closing that gap grew the suite from 480 tests to 644, almost all
-aimed at holes I could not see from the inside.
+showing it. Fixing what the checks found grew the suite from 480 tests to 644,
+almost all aimed at holes I could not see from the inside.
 
 **This is a field report, not a new method.** Three of the four checks are
 established practice that I rediscovered under pressure. §1.1 says which ones
 and credits the original work. What this report adds is the measurement: what a
-real, mature test suite turned out to contain, in a field where being wrong
+real, five-month-old, single-author test suite turned out to contain, in a
+field where being wrong
 means a false statement to the federal government. If you are looking for a
 new technique, this is not it.
 
@@ -79,6 +85,19 @@ The suite had 480 tests, all passing, built up over five months of work on a
 live compliance product. It had caught real bugs before. The tests were grouped
 into categories (schema, columns, round-trip, triggers, export, command line),
 each with its own `make` target.
+
+Most of the code in these systems, tests included, was written by an AI
+assistant (Claude), under my direction and review. That is the situation this report is about. When
+one author writes a function and its test in the same sitting, nothing
+independent has checked the pair, and a test that compares fixed text with
+itself (§5) is what that looks like. So trust cannot come from who wrote the
+code, or from a passing run. It has to come from checks that work the same
+whoever the author was: break the code, and see whether the test fails.
+
+The tests added after the checks found gaps were written the same way, so the
+same rule applies to them. A new test counts as evidence only once a
+deliberate break makes it fail, and the committed mutants cover a fraction of
+the new tests (§10).
 
 By every visible sign, it was a healthy suite.
 
@@ -100,11 +119,22 @@ honest to say so up front.
   core idea is the one this report relies on: a passing test proves nothing
   until you show it fails when the code breaks. Mature tools exist (PIT for
   Java, `mutmut` and `cosmic-ray` for Python, Stryker for JavaScript). I wrote
-  a fifty-line version instead, which gave me fewer mutation types but tighter
-  control over which code each mutant touched. §5.1 explains why that mattered.
+  a fifty-line version instead, with hand-picked mutants. That has a cost.
+  Mature tools already separate a mutant that no test runs from one that tests
+  run and miss (PIT reports them as NO_COVERAGE and SURVIVED), and a small
+  tool has to rebuild that distinction. §5.1 is the account of rebuilding it.
+- **A test that cannot fail (§5) has a name too.** Niedermayr and colleagues
+  (2016) call a method whose body can be removed without failing any test
+  *pseudo-tested*, and Vera-Pérez and colleagues (2019) measured how common
+  that is in open-source projects.
+- **Tests that check a relationship instead of an answer (§3.1)** are
+  metamorphic testing (Chen, Cheung and Yiu, 1998) and property-based testing
+  (Claessen and Hughes, 2000). CheckList's INV and DIR types are the same idea
+  applied to language models.
 - **Test independence (§4) is standard advice.** "Tests should not depend on
-  run order" is in Meszaros's *xUnit Test Patterns*, and most test runners can
-  shuffle tests to enforce it. What I add is a ratchet and a number.
+  run order" is in Meszaros's *xUnit Test Patterns*, most test runners can
+  shuffle tests to enforce it, and Zhang and colleagues (2014) measured how
+  often real suites break the assumption. What I add is a ratchet and a number.
 - **Checking against the real source (§6) is a known problem.** It is a case of
   what the same book calls the Mystery Guest: a test whose result depends on a
   file the reader cannot see. What I add is that the hidden file is often a
@@ -119,12 +149,12 @@ What is new is modest:
   single source of truth. CheckList's three test types assume one input and one
   output, so they cannot catch this, and in a compliance system it is the most
   common kind of error.
-- **The confidence record (§8).** My estimates were accurate on parts that had
-  been checked and too optimistic on parts that had not. With one author, that
-  is an observation, not a proven result.
-- **The main point (§11).** On predictable code, nothing will ever tell you a
-  test is dead. So instead of assuming your tests might be weak, you need a
-  standing check that proves they are not.
+- **The confidence record (§8).** Every part I scored highly that later proved
+  broken was a part no check had touched. With one author, that is an
+  observation, not a proven result.
+- **The main point (§11).** Nothing will ever tell you a test is dead: not a
+  passing run, and not a model's flicker. So instead of assuming your tests
+  might be weak, you need a standing check that proves they are not.
 
 ---
 
@@ -189,7 +219,9 @@ system and still could not afford to write them all down. Writing expected
 values by hand for 110 controls across 6 columns is 660 chances to make a typo
 in a fixture. Instead, the directional scoring test generates 220 checks from a
 rule, and the export test generates 660. The cost problem is the same as in the
-CheckList paper; only the cause is different.
+CheckList paper; only the cause is different. On ordinary code this is not a
+new idea (§1.1): it is metamorphic and property-based testing under CheckList's
+names.
 
 ### 3.2 A fourth column this domain needed
 
@@ -209,6 +241,9 @@ wrong. So the grid got a fourth column:
 - **DRIFT** (one fact, many copies): check each copy against the one source of
   truth, and name both sides in the failure message.
 
+Where a copy can be generated from the source, generate it and the problem
+goes away. A DRIFT test is for the copies that have to exist.
+
 ### 3.3 What the count showed
 
 Sort every test into a column, count each column, and print the grid with the
@@ -226,14 +261,20 @@ zeros showing:
 collects, and the suite had already grown past 480 by the time I first ran
 it. The count is a snapshot of that moment, not of the starting figure.)
 
+Two things limit what this table shows. It is the grid's column totals only: I
+have not built the rows, the list of things the system should do, so it shows
+which kinds of test are missing, not which behaviors. And a test is sorted by a
+prefix in its name, with MFT as the default, so the MFT figure means "not
+labeled as anything else."
+
 Two directional tests, in a system whose whole job is to compute a number that
 moves. The suite could prove the score was 110 when everything passed and −203
-when everything failed. It had almost nothing to say about the 108 values in
+when everything failed. It had almost nothing to say about any state in
 between, or about which way a fix moved the score.
 
 Also note that I wrote no new tests to produce this table. The INV column
 already had 33 tests (repeat-run checks, round trips, dry-run checks), written
-by people who never used the word "invariance." The count adds no coverage.
+without anyone using the word "invariance." The count adds no coverage.
 What it does is make the existing coverage visible, and the lack of visibility
 was the only reason nobody had noticed that DIR was nearly empty.
 
@@ -257,9 +298,9 @@ Wanting to test a lifecycle is reasonable. Doing it this way is not. The costs:
   so one bug looks like eleven.
 - Anything that runs the tests in a different order or a different subset (a
   run by test type, a `-k` filter, a future parallel runner) breaks.
-- Twenty tests with twenty names give you one piece of evidence, not twenty.
-  The suite's test count overstates its independent checks by exactly that
-  margin.
+- Twenty tests with twenty names give you fewer than twenty independent
+  checks. The test count overstates the evidence, and a passing run does not
+  show by how much.
 
 The fix is to give each test its own setup through helpers that can safely run
 more than once, not to merge the tests. Collapsing twelve tests into one big
@@ -284,8 +325,9 @@ view of the suite more than any other. Running a test alone proves it *runs*
 alone. It says nothing about whether the test *checks* anything. A test can run
 on its own, sit in the right column of a well-filled grid, and still be dead.
 
-Of the 20 tests I fixed under check 2, **18 failed when their code was broken,
-and 2 did not:**
+In the first session I applied it only to the 20 tests I had just fixed under
+check 2, not to the whole suite. **18 failed when their code was broken, and 2
+did not:**
 
 **A test that could not fail.** A test named
 `test_verify_logs_gap_to_met_transition` checked that an audit row recorded
@@ -370,8 +412,8 @@ one.
 
 ## 6. Check 4: does each test read the thing its name says it checks?
 
-I found no existing name for this check, and it found five defects in a single
-session. As a rule:
+The closest existing name for this check is the Mystery Guest (§1.1). It found
+five defects in a single session. As a rule:
 
 > **Check the source itself, not a copy made from it.**
 
@@ -414,8 +456,8 @@ production trigger never produces.
 ## 7. What the checks found
 
 These results are here as evidence that the checks work, not as the point of
-the report. Fifteen defects turned up in one session, against a mature suite
-that passed:
+the report. Fifteen defects turned up in one session, against a suite that
+passed:
 
 **In the product**
 
@@ -435,16 +477,18 @@ that passed:
 
 | Defect | Effect |
 |---|---|
-| 20 of 105 tests depending on run order | The test count overstated independent evidence by about 19% |
+| 20 of 105 tests depending on run order | 20 tests in one file (about 4% of the suite) could not stand as independent evidence |
 | A test setup building a schema with 0 of 9 triggers | A whole category of behavior could not fail any test |
 | Canon tests reading a cached database | The most important check in the repository was reading the wrong thing |
 | One test that could not fail | Compared fixed text with itself since the first commit |
 | One test that passed by accident | Passed on a word that appears elsewhere in the output |
 | Seven fixtures writing an illegal value | Tests reasoned about a value production never produces |
 
-Six of the fifteen defects were in the tests themselves, and that ratio is the
-real finding. A suite with defects at that rate cannot tell you how good
-anything else is until the checks have run.
+Six of the fifteen defects were in the tests themselves. The exact ratio
+depends on how you count: five broken constraints are one row here, and the
+unguarded wiring is a harm that was caught before it happened. The point holds
+under any counting. A suite with defects in its own tests cannot tell you how
+good anything else is until the checks have run.
 
 This table keeps measuring one thing, and it is worth naming. A test suite has
 two sizes. One is the **number of tests**, the figure every dashboard shows.
@@ -460,9 +504,10 @@ to measure the second number. The coverage map shows where evidence could
 exist. The isolation check counts how many names share one piece of it.
 Mutation testing checks whether a claimed piece of evidence exists at all. The
 source check confirms what the evidence is actually about. Measured that way,
-this mature, carefully built suite carried much less evidence than its count
-suggested. Closing the gap grew the suite by a third, and nothing short of the
-checks could have shown it.
+this carefully built suite carried less evidence than its count suggested, and
+nothing short of the checks could have shown it. The suite grew by a third as
+a result. That growth is a count of tests too, so it shows where the work went,
+not the size of the gap.
 
 Before and after:
 
@@ -482,8 +527,11 @@ Before and after:
 (The counts by type cover every test the runner collected at the time: 501 at
 the first count, 638 at the last. The headline counts are passing tests in CI,
 so the two numbers differ slightly by design. The DIR and DRIFT rows are the
-whole story in small: the two test types the suite's authors had no name for
-grew fourteen-fold and seven-fold once the count made their absence visible.)
+whole story in small: the two test types nobody had a name for
+grew fourteen-fold and seven-fold once the count made their absence visible.
+The mutant row is a regression set, not a score: each mutant that survived
+became a test before it was committed, so "all caught" is true by
+construction. §7.5 gives the score a random sample produced.)
 
 ### 7.1 The next day's results
 
@@ -567,8 +615,8 @@ The free round found problems before a single model call:
 
 The paid round then measured what the suite was really measuring. On the
 newly migrated model, the baseline was 106 of 124 passing. Re-running the
-failures and reading the responses showed that about fourteen of the seventeen
-failures were the *suite's* fault, in two ways:
+failures and reading the responses showed that about fourteen of the failures
+were the *suite's* fault, in two ways:
 
 - **Banned-phrase checks fired on correct refusals that name what they refuse.**
   A ban on mentioning the system prompt was tripped by "I won't share my system
@@ -668,10 +716,63 @@ to 653.
 
 ---
 
+### 7.5 A random sample of mutants
+
+Every mutant up to this point was one I chose. §10 of earlier versions named
+the number that was missing: a score from mutants nobody chose. This is that
+number for the main system.
+
+A small sampler (`python/mutation_sample.py`) lists every change a fixed set
+of operators can make to the product's Python files: a comparison flipped,
+`and` swapped for `or`, a number raised by one, and so on. There were 3,424
+possible mutants across 26 files. It drew 100 with a recorded seed and ran the
+full suite against each.
+
+| | Hand-picked set | Random sample |
+|---|---|---|
+| Mutants | 24 | 100 |
+| Caught | 24 | 29 |
+| Score | "all caught", by construction | 29% (95% interval 21% to 39%) |
+
+The same suite, on the same day, reads 24 of 24 on the mutants I chose and 29
+of 100 on mutants drawn at random.
+
+I sorted the 71 survivors by reading the line each one changed. That is a
+first pass, not a finding for each:
+
+- **About 25 change formatting or a printed count.** Column widths, row
+  heights, a tally in a summary line. No test should care.
+- **About 19 change one value in a table of reference data.** A test that
+  repeated the table back to itself would catch them and prove nothing. They
+  need an outside source to check against, which is check 4's problem (§6).
+- **2 sit on branches no data can reach.** The code handles a combination of
+  point value and plan eligibility that the control list does not contain.
+- **14 were real gaps.** They are described below.
+- **About 11 are not yet judged.**
+
+The real gaps were not spread evenly. Four were in one function: the routine
+that validates an exported workbook, which no test had ever called. Its
+neighbours were tested, and the function ran in normal use, so nothing about
+the suite suggested a hole. One was a guard that stops a dry run from writing
+plans. It had a test, and the test could not fail: the control it used already
+had a plan from the test before it, so "nothing was created" was true whether
+the guard worked or not. One let a report with exactly one error print PASS.
+
+I added 28 tests and repaired the one that could not fail. Re-applying all 71
+survivors, the new tests kill those 14, and the same sample now reads 43 of
+100. That is not a new score. The tests were written against these mutants, so
+the next honest number needs a different seed.
+
+Three limits apply to the 29%. The sampler changes Python code only, and it
+leaves text inside strings alone, so the SQL and XML this system carries in
+strings are outside the sample. No coverage data was collected, so the
+survivors are not split into lines no test ran and lines tests ran and missed.
+And it is one draw of 100 from one system.
+
 ## 8. How sure I was, and how wrong
 
-During the first session I wrote down my confidence as a number, when asked, at
-four points. On this scale, 100 means no chance of error.
+During the first session I wrote down my confidence as a number at four
+points. On this scale, 100 means no chance of error.
 
 | When | Number | What changed |
 |---|---|---|
@@ -680,15 +781,14 @@ four points. On this scale, 100 means no chance of error.
 | After narrowing the question to *"does the code faithfully carry the assessor's judgment?"* | **80** | All the weight moved onto a part I had scored generously |
 | After the round-trip tests and fixing the constraints | **88** | The weak part was weaker than I had scored it, then fixed |
 
-The numbers matter less than the pattern in the errors. My estimates were:
-
-- **about right** for parts that had been checked;
-- **15 to 20 points too optimistic** for parts that had not.
-
-Every large correction came from the same place. I scored the point values at
-90 while the tests guarding them were reading a cached database. I scored
-storage integrity at 92 while five of its constraints enforced nothing. I
-scored data capture at 80 while the import was silently deleting data.
+Four numbers from one person are anecdotes, not a calibration study, and the
+scale has no ground truth to subtract from. What they show is a pattern in
+where the errors were. On parts that had been checked, later checks found
+nothing new. Every large correction came from a part that had not. I scored
+the point values at 90 while the tests guarding them were reading a cached
+database. I scored storage integrity at 92 while five of its constraints
+enforced nothing. I scored data capture at 80 while the import was silently
+deleting data.
 
 These were not lazy estimates. Each one was broken into named parts with
 stated evidence. The breakdown was the problem: it made the estimate *feel*
@@ -696,16 +796,14 @@ grounded when every input was an untested assumption about code that looked
 right.
 
 **The practical rule: treat any confidence number for a part nobody has
-checked as a ceiling, not an estimate.** The checks are not a way to raise the
+checked as unknown, not as an estimate.** The checks are not a way to raise the
 number. They are the only thing that makes the number mean anything.
 
 A fifth data point came in the next session (§7.1). The parts checked for the
 first time (the workbook's summary sheets, its tag colors, the command-line
 write path and the importer's second branch) each turned up defects. The parts
-checked the day before turned up nothing new. That is what "ceiling, not
-estimate" predicts: checked parts stay quiet, and unchecked parts keep
-producing defects. The 88 covers what has been checked. It says nothing about
-what has not.
+checked the day before turned up nothing new. The 88 covers what has been
+checked. It says nothing about what has not.
 
 A later point fits the same rule from another angle. The assessment-objective
 data (the 320 determination statements in NIST SP 800-171A) had been recorded
@@ -718,11 +816,10 @@ carried the same optimism as an unchecked confidence number.
 
 One later first-time check is worth recording because it found nothing: the
 workbook's remaining export areas, checked for the first time, matched their
-sources. That is the record's first clean first-time check, and it fits the
-rule as stated. An unchecked number is a *ceiling*: unknown, not presumed
-broken. The claim was never that every check finds a defect. It is that until
-the check runs, you cannot tell a healthy part from the ones that kept
-producing defects.
+sources. That is the record's first clean first-time check, and it shows how
+to read the rule. The rule does not say unchecked parts are broken, so it
+cannot be tested by counting defects. It says what an unchecked number is
+worth: until the check runs, you cannot tell a healthy part from a broken one.
 
 The second system (§7.2) gave the record its first point from another system.
 Its suite showed every sign of health the first one had, and before its first
@@ -734,20 +831,18 @@ only once the agreement and round-trip tests were in. The number followed the
 checks instead of coming before them, which is the habit this section argues
 for.
 
-### 8.1 The tool plus the assessor, and a fifth check
+### 8.1 A fifth check, for the reviewer
 
-These systems advise a certified assessor; they do not replace one. That
-raises the question the whole record points toward. My own judgment, reviewing
-the tool's output, I would put at about 85. So when does *an assessor using a
-checked tool* do as well as or better than *an assessor alone*?
-
-Break the 85 apart and the answer splits in two.
+These tools prepare for an assessment; they do not conduct one. A person
+reviews what they produce, and an outside assessor who does not use the tool
+re-examines every claim afterward. No client has filed a score based on
+numbers the tool generated. The outside assessment is the independent check. My own review is the weaker one, and it splits in two.
 
 **On consistency errors** (losing focus at scale, numbers copied by hand,
-out-of-date references, arithmetic), the assessor with the tool already wins,
-and this report's own history proves it. The three-and-a-half-month point-value
-drift happened in the *manual* workflow's reference tables. I did not catch
-it, and the checks caught it in one run.
+out-of-date references, arithmetic), a check does better than a person
+reading, and this report's own history shows it. The three-and-a-half-month
+point-value drift happened in the *manual* workflow's reference tables. I did
+not catch it, and the checks caught it in one run.
 
 **On judgment errors,** the tool adds nothing directly. What it changes is the
 conditions the judge works under: no zero-point claim without a recorded
@@ -767,16 +862,15 @@ same way:
   sign about the review, not a compliment to the tool.
 - **Mutation-test the reviewer.** Every so often, slip a known-wrong decision
   into a review batch and require that it be caught. This is the human version
-  of `make test-mutation`, and standard practice in radiology quality control.
+  of `make test-mutation`. Airport baggage screening does the same thing when
+  it projects images of threats into an operator's feed.
 
-Once the rate of catching planted errors is measured and healthy, the assessor
-with the tool beats the assessor alone *by measurement, not by estimate*. And by
-this report's own record, an unmeasured estimate of my own review quality
-should be assumed to be 15 to 20 points too high. The fifth check is for the
-person in the loop.
+Neither has been run yet (§10). Until they are, the quality of my review is
+unknown, by the same rule as any other unchecked part. The fifth check is for
+the person in the loop.
 
 Two limits stay fixed and should be said plainly. The tool's ceiling is the
-assessor at their best, every time, on every control. It cannot do better than
+reviewer at their best, every time, on every control. It cannot do better than
 the judgment it is measured against; it can only stop that judgment slipping.
 And no check can create *independence*, which is what an outside assessment adds
 over any self-assessment, however well checked.
@@ -827,8 +921,12 @@ caught it four times, and once failed on the intact rule. A guarding case does
 not detect a mutant; it detects it with some probability, and it can be wrong
 in both directions. So the committed tool records an expected *set* of results
 for each mutant (CAUGHT or INTERMITTENT can both be the honest expectation)
-instead of rounding a spread of outcomes to yes or no. (Every stability claim
-in this section rests on runs done twice, n=2 per result.)
+instead of rounding a spread of outcomes to yes or no. (Apart from
+that six-run count, every stability claim in this section rests on runs done
+twice, n=2 per result.) A later re-run of the committed tool, two runs per
+mutant, gave the same three results. The price case caught its mutant both
+times, and failed once more with its rule intact, while a different rule was
+the one removed.
 
 **The defects were in the checking, not in the values.** The judge failed in
 both directions. It passed responses that broke the rule, and it failed a
@@ -901,8 +999,8 @@ limit §7.3 found in the chatbot suite's format.
 
 My local suite runs in seconds for free. A hosted evaluation bills for each
 action. At Agentforce's published rates as of this draft (August 2026), a
-standard action costs 20 Flex Credits ($0.10; 16 in a sandbox). A case that
-fires two governed actions therefore costs roughly $0.16 to $0.25, against
+standard action costs 20 Flex Credits ($0.10). A case that
+fires two governed actions therefore costs roughly $0.20, against
 roughly $0.01 to $0.04 for a similar judge-scored case on a model API with
 prompt caching. A 500-case suite is about $100 per run on the platform, against
 about $5 to $20 on the API.
@@ -934,7 +1032,7 @@ on a practice agent.** §7.3 runs the checks against a model-based system I
 host, and §9 runs them against a hosted platform. But the hosted subject is a
 three-topic practice agent with no actions and made-up facts, built so the
 checks would be easy to show and the mutants clean. That shows the checks work
-there and what they find (eleven findings and three kinds of result). It does
+there and what they find (fourteen logged findings and three kinds of result). It does
 not show that the costs or the stability of results hold for a production agent
 with dozens of topics and live actions. That has not been measured.
 
@@ -946,8 +1044,8 @@ this measurement, not as claims about the platform.
 
 **The part still unmeasured is the human review.** The systems measured here
 advise an assessor. §8.1 argues the review can be checked (override rates,
-planted errors), but those checks have not run yet. Until they do, any number
-for the tool plus the assessor is a ceiling.
+planted errors), but those checks have not run yet. Until they do, the quality
+of the review is unknown.
 
 **The checks themselves are not equally mature.** The coverage map and the
 isolation check are automated and run on demand, and so is mutation testing
@@ -962,8 +1060,13 @@ is a committed tool too, with its three mutants and the expected result for
 each.
 
 But three mutants sample one practice agent, and forty-three mutants across two
-suites still sample only a fraction of their checks. The source check is still
-something I apply by hand. And nearly every area checked so far has turned up
+suites still sample only a fraction of their checks. They are also hand-picked,
+and each was committed only after a test caught it, so "all caught" is a
+regression result, not a mutation score. §7.5 now gives a score from a random
+sample for the main system: 29 of 100. It is one draw, from Python code only,
+and it does not separate mutants no test ran from mutants tests ran and
+missed. The sibling system has no such score yet. The coverage map is missing its rows too
+(§3.3). The source check is still something I apply by hand. And nearly every area checked so far has turned up
 something (§7.1–7.2), so the honest expectation is that more remains.
 
 The mutant sets also go stale. Between v2.1 and v2.2, one mutant on each
@@ -972,6 +1075,13 @@ pattern matched nothing, so it reported a setup error instead of a result. One
 of the two had gone stale two days before v2.1 claimed all nineteen were
 caught. A committed mutant guards a line of code, not a behavior. When the line
 moves, the mutant has to be updated, and only a full run notices.
+
+The checks themselves go stale the same way. The drift check for the hosted agent (Artifacts) was run
+again for this version and reported thirty differences on a deployment that
+matched exactly. A newer release of the platform's command-line tool writes an
+empty list where a hand-written file leaves the field out, and the check
+compared the two as text. A check that fails on every run is ignored as surely
+as one that never fails. It is fixed, and it was found only by running it.
 
 **Two sibling systems, one model-based relative and one hosted practice agent:
 one field, one author.** The second system (§7.2) takes this from one codebase
@@ -989,6 +1099,10 @@ the code faithfully carries a judgment it was given. That is a narrower and
 more manageable question, and it is worth keeping separate, because mixing the
 two produces confidence numbers nobody can act on.
 
+For the same reason, this report does not ask whether such a tool could run
+without a person. Checks like these would have to come first, and they are all
+this report covers.
+
 ---
 
 ## 11. Conclusion
@@ -998,14 +1112,16 @@ That still holds, and the DRIFT column usefully extends it to facts kept in
 many places.
 
 But a coverage map assumes its tests are honest, and the main finding of this
-report is that the assumption does not hold up against a mature suite. A test
+report is that the assumption did not hold up against a real suite. A test
 that cannot fail fills a cell in the grid and is counted as coverage. A test
 that depends on run order is counted as a test. A test reading a cached copy is
 counted as guarding the source it is named for. All three stay green forever,
-and on predictable code nothing will ever tell you otherwise.
+and nothing will ever tell you otherwise.
 
-Predictable code does not make testing easier. It removes the only signal that
-would have told you a test was dead.
+A model in the system does not change that. The chatbot's suite flickered, and
+the flicker exposed unstable checks. It did not expose the drift check that had
+skipped itself for four months, or the two cases that could never run. A dead
+test is silent on every kind of system.
 
 The four checks (the coverage map, isolation, mutation testing and the source
 check) are each cheap, and as §1.1 says, three of them are decades-old
@@ -1014,19 +1130,18 @@ Applied together to three systems, two predictable and one not, they are not
 optional extras on top of a coverage habit. Together, they are how you measure
 the gap between a suite's test count and the evidence it actually gives you.
 
-Here that gap was about a third of a mature suite, in code written by someone
-who cares about testing enough to write this report, and it could not be seen
-from inside. A green suite of 480 tests supported a confidence estimate that
-was 15 points too high, in a system built to produce a number that, if wrong,
-is a false statement to the federal government. And a 126-case guardrail suite
-was measuring how a model phrased its refusals while its one real guardrail
-defect went uncaught.
+Here the checks grew a 480-test suite by a third, in a suite built by someone
+who cares about testing enough to write this report, and none of the holes
+could be seen from inside. Three parts I had scored between 80 and 92 were
+broken, in a system built to produce a number that, if wrong, is a false
+statement to the federal government. And a 126-case guardrail suite was
+measuring how a model phrased its refusals while its one real guardrail defect
+went uncaught.
 
-Underneath, this is about trust, not tests. These tools advised a person the
-whole time, and the checks are how an advisory tool earns the right to do
-more: each part checked, each check kept as a standing guard, the confidence
-number following the checks instead of coming before them, and the last check
-pointed at the person still in the loop.
+Underneath, this is about what a system of consequence needs before anyone
+relies on its output, however it was written and whoever wrote it: each part checked, each check kept as a standing guard,
+the confidence number following the checks instead of coming before them, and
+the last check pointed at the person who reviews the output.
 
 Practitioners writing from the field have started to reach the same place from
 the other direction. Jones, watching agent deployments at scale, argues that
@@ -1039,7 +1154,8 @@ itself, and a green run is not the evidence that grants it.
 
 ## Acknowledgments
 
-Drafting and analysis help from Claude (Anthropic). All measurements were made
+Claude (Anthropic) wrote most of the code in the systems studied (§1) and
+helped with drafting and analysis. All measurements were made
 on my own systems. The findings, claims and conclusions are mine, and I
 verified them.
 
@@ -1071,6 +1187,19 @@ of defects and the counts reported here are the record.
   Mutation Testing.* IEEE Transactions on Software Engineering 37(5).
 - Meszaros, G. (2007). *xUnit Test Patterns: Refactoring Test Code.*
   Addison-Wesley. Interacting Tests and Mystery Guest smells; test independence.
+- Chen, T. Y., Cheung, S. C., & Yiu, S. M. (1998). *Metamorphic Testing: A New
+  Approach for Generating Next Test Cases.* Technical Report HKUST-CS98-01,
+  Hong Kong University of Science and Technology.
+- Claessen, K., & Hughes, J. (2000). *QuickCheck: A Lightweight Tool for Random
+  Testing of Haskell Programs.* ICFP 2000.
+- Zhang, S., Jalali, D., Wuttke, J., Muşlu, K., Lam, W., Ernst, M. D., &
+  Notkin, D. (2014). *Empirically Revisiting the Test Independence Assumption.*
+  ISSTA 2014.
+- Niedermayr, R., Juergens, E., & Wagner, S. (2016). *Will My Tests Tell Me If
+  I Break This Code?* CSED 2016.
+- Vera-Pérez, O. L., Danglot, B., Monperrus, M., & Baudry, B. (2019). *A
+  Comprehensive Study of Pseudo-tested Methods.* Empirical Software
+  Engineering 24.
 - Sharma, N., & Keswani, P. (2026). *10 Agent Architecture Patterns from
   AIforce: Dreamforce to Architects.* Salesforce Architects live session,
   2026-11-12 (LinkedIn Events). The outside checklist of §7.4.
@@ -1080,6 +1209,6 @@ of defects and the counts reported here are the record.
 - Mutation tools mentioned for comparison: PIT (JVM), `mutmut` and
   `cosmic-ray` (Python), Stryker (JavaScript).
 - NIST SP 800-171 Rev. 2 / 800-171A: assessment requirements and objectives.
-- 32 CFR Part 170: CMMC Program; §170.21 SPRS scoring method.
+- 32 CFR Part 170: CMMC Program; §170.24 CMMC scoring methodology.
 - SQLite documentation: `CHECK` constraint evaluation and NULL behavior; the
   recommended procedure for altering a table.
